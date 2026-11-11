@@ -1,7 +1,0 @@
-# Security headers for Cloudflare Pages / Netlify. The app makes no network
-# requests at runtime, so the policy can be strict.
-/*
-  Content-Security-Policy: default-src 'self'; img-src 'self' data: blob:; style-src 'self'; script-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
-  X-Content-Type-Options: nosniff
-  Referrer-Policy: no-referrer
-  Permissions-Policy: camera=(), microphone=(), geolocation=()

@@ -872,3 +872,57 @@ button:disabled,
     animation: none !important;
   }
 }
+
+/* ---------- Auth & account ---------- */
+.app-account {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+}
+
+.app-account-email {
+  overflow-wrap: anywhere;
+}
+
+@media (min-width: 900px) {
+  .app-header {
+    grid-template-columns: 1fr auto auto;
+    align-items: center;
+  }
+}
+
+.sign-in {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: var(--space-4);
+}
+
+.sign-in-card {
+  max-width: 26rem;
+  width: 100%;
+  gap: var(--space-4);
+}
+
+.sign-in-title {
+  font-size: 1.75rem;
+  color: var(--color-primary);
+}
+
+.sign-in-points {
+  margin: 0;
+  padding-left: var(--space-5);
+  display: grid;
+  gap: var(--space-1);
+}
+
+.sign-in-button {
+  width: 100%;
+}
+
+.danger-zone {
+  border-color: var(--color-danger);
+}

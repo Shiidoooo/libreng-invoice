@@ -2,7 +2,7 @@ import { useState, type ChangeEvent } from 'react';
 import { CURRENCIES, type CurrencyCode } from '../money/money';
 import { TEXT_LIMITS } from '../invoices/draft';
 import { BackupFormatError, MAX_BACKUP_FILE_BYTES, parseBackup, parseProfile } from '../storage/backupFormat';
-import { createBackup, importBackup } from '../storage/database';
+import { createBackup, deleteMyAccount, importBackup } from '../storage/database';
 import { FormField } from '../ui/FormField';
 import { LogoFileError, readLogoFile } from './logo';
 import type { BusinessProfile, PaymentMethod } from './types';
@@ -128,7 +128,7 @@ export function SettingsPage({ profile, onSaveProfile, onDataImported, createId,
         }}
       >
         <h2>Business details</h2>
-        <p className="field-hint">Printed on every document. Stored only in this browser.</p>
+        <p className="field-hint">Printed on every document.</p>
 
         <FormField label="Business or your name">
           {(control) => (
@@ -272,8 +272,8 @@ export function SettingsPage({ profile, onSaveProfile, onDataImported, createId,
       <section className="card">
         <h2>Backup</h2>
         <p>
-          Your documents are saved only in this browser. Clearing browser data deletes them, so download a backup now and
-          then. You can restore it here or on another device.
+          Your documents are saved to your account. You can also download a copy as a file for your own records, or to
+          restore documents from the older offline version of this app.
         </p>
         <div className="backup-actions">
           <button type="button" className="button-secondary" onClick={() => void handleExport()}>
@@ -295,6 +295,51 @@ export function SettingsPage({ profile, onSaveProfile, onDataImported, createId,
           {backupFeedback && <p className={`banner banner-${backupFeedback.tone}`}>{backupFeedback.message}</p>}
         </div>
       </section>
+
+      <DeleteAccountSection />
     </div>
+  );
+}
+
+const DELETE_CONFIRMATION_WORD = 'DELETE';
+
+/** Permanent erasure of the account and all its data. Requires typing a word so it cannot happen by a stray click. */
+function DeleteAccountSection() {
+  const [confirmation, setConfirmation] = useState('');
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const isConfirmed = confirmation.trim() === DELETE_CONFIRMATION_WORD;
+
+  const handleDelete = async () => {
+    if (!isConfirmed) return;
+    setIsDeleting(true);
+    setError(null);
+    try {
+      await deleteMyAccount();
+      // Signing out returns the app to the sign-in page.
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : 'Could not delete your account. Please try again.');
+      setIsDeleting(false);
+    }
+  };
+
+  return (
+    <section className="card danger-zone">
+      <h2>Delete account</h2>
+      <p>
+        Permanently deletes your account, business details and <strong>every document</strong>. This cannot be undone.
+        Download a backup first if you want to keep a copy.
+      </p>
+      <FormField label={`Type ${DELETE_CONFIRMATION_WORD} to confirm`} error={error ?? undefined}>
+        {(control) => (
+          <input {...control} autoComplete="off" value={confirmation} onChange={(e) => setConfirmation(e.target.value)} />
+        )}
+      </FormField>
+      <div>
+        <button type="button" className="button-danger" disabled={!isConfirmed || isDeleting} onClick={() => void handleDelete()}>
+          {isDeleting ? 'Deleting…' : 'Delete my account and all documents'}
+        </button>
+      </div>
+    </section>
   );
 }
