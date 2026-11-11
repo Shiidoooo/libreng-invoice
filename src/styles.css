@@ -926,3 +926,34 @@ button:disabled,
 .danger-zone {
   border-color: var(--color-danger);
 }
+
+.sign-in-heading {
+  font-size: 1.25rem;
+}
+
+.sign-in-form {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.sign-in-divider {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+}
+
+.sign-in-divider::before,
+.sign-in-divider::after {
+  content: '';
+  flex: 1;
+  border-top: 1px solid var(--color-border);
+}
+
+.sign-in-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-2);
+}

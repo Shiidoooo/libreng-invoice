@@ -1,3 +1,4 @@
+import { ResetPasswordPage } from './auth/ResetPasswordPage';
 import { SignInPage } from './auth/SignInPage';
 import { signOut, useSession } from './auth/session';
 import { appConfig } from './config/env';
@@ -19,6 +20,7 @@ function AuthenticatedApp() {
     );
   }
   if (session.status === 'signed_out') return <SignInPage />;
+  if (session.status === 'recovering_password') return <ResetPasswordPage email={session.session.user.email ?? ''} />;
 
   const { user } = session.session;
   return <Workspace key={user.id} userEmail={user.email ?? 'Signed in'} onSignOut={() => void signOut()} />;
