@@ -77,7 +77,10 @@ export function DocumentPreview({ document: doc, profile }: DocumentPreviewProps
                 <td className="numeric">
                   {formatQuantity(item.quantityThousandths)} {item.unit}
                 </td>
-                <td className="numeric">{money(item.unitPriceCentavos)}</td>
+                <td className="numeric">
+                  {money(item.unitPriceCentavos)}
+                  {item.priceUnit && <span className="sheet-muted"> / {item.priceUnit}</span>}
+                </td>
                 <td className="numeric">{money(totals.lineAmounts[index])}</td>
               </tr>
             ))}

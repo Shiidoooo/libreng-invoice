@@ -56,3 +56,18 @@ describe('parseBackup', () => {
     expect(() => parseBackup(JSON.stringify(backup))).toThrow(BackupFormatError);
   });
 });
+
+describe('parseBackup price units', () => {
+  it('reads documents saved before price units existed', () => {
+    const backup = validBackup();
+    const legacy = JSON.parse(JSON.stringify(backup));
+    delete legacy.documents[0].items[0].priceUnit;
+    expect(parseBackup(JSON.stringify(legacy)).documents[0].items[0].priceUnit).toBeNull();
+  });
+
+  it('rejects a price unit that cannot be converted from the item unit', () => {
+    const backup = validBackup();
+    backup.documents[0].items[0] = { ...backup.documents[0].items[0], unit: 'pcs', priceUnit: 'kg' };
+    expect(() => parseBackup(JSON.stringify(backup))).toThrow(/priceUnit/);
+  });
+});

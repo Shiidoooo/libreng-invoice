@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { BusinessProfile } from '../business/types';
 import { addDays } from '../dates/dates';
-import { CURRENCIES, formatMoney, getCurrencySymbol, type CurrencyCode } from '../money/money';
+import { CURRENCIES, formatMoney, formatQuantity, getCurrencySymbol, type CurrencyCode } from '../money/money';
 import { AffixInput } from '../ui/AffixInput';
 import { FormField } from '../ui/FormField';
 import { IconPlus, IconTrash } from '../ui/icons';
@@ -19,6 +19,7 @@ import {
 import { suggestNextNumber, type NumberCounters } from './numbering';
 import { printDocument } from './printDocument';
 import { computeTotals } from './totals';
+import { priceUnitOptions, toMeasureUnitCode } from './units';
 import { DOCUMENT_KINDS, type BusinessDocument, type Discount, type DocumentKind, type Party } from './types';
 
 const COMMON_UNITS = ['pcs', 'pack', 'box', 'kg', 'g', 'L', 'mL', 'dozen', 'set', 'hr', 'day', 'session', 'lot'];
@@ -207,6 +208,9 @@ export function DocumentEditor({
           <ol className="items">
             {draft.items.map((item, index) => {
               const prefix = `items.${item.id}`;
+              const priceOptions = priceUnitOptions(item.unit);
+              const quantityUnitCode = toMeasureUnitCode(item.unit);
+              const lineItem = conversion.document.items[index];
               return (
                 <li key={item.id} className="item-card">
                   <div className="item-card-header">
@@ -251,23 +255,55 @@ export function DocumentEditor({
                           list="common-units"
                           value={item.unit}
                           maxLength={TEXT_LIMITS.itemUnit}
-                          onChange={(e) => updateItem(item.id, { unit: e.target.value })}
+                          onChange={(e) => {
+                            const unit = e.target.value;
+                            // Drop a "per kg" choice that no longer fits the new unit (e.g. changed to "pcs").
+                            const priceUnit = priceUnitOptions(unit).includes(item.priceUnit) ? item.priceUnit : '';
+                            updateItem(item.id, { unit, priceUnit });
+                          }}
                         />
                       )}
                     </FormField>
-                    <FormField label="Price each" error={visibleErrors[`${prefix}.unitPrice`]}>
+                    <FormField
+                      label={priceOptions.length > 0 ? 'Price' : 'Price each'}
+                      error={visibleErrors[`${prefix}.unitPrice`]}
+                    >
                       {(control) => (
-                        <AffixInput
-                          {...control}
-                          prefix={currencySymbol}
-                          inputMode="decimal"
-                          placeholder="0.00"
-                          value={item.unitPriceText}
-                          onChange={(e) => updateItem(item.id, { unitPriceText: e.target.value })}
-                        />
+                        <div className="price-with-unit">
+                          <AffixInput
+                            {...control}
+                            prefix={currencySymbol}
+                            inputMode="decimal"
+                            placeholder="0.00"
+                            value={item.unitPriceText}
+                            onChange={(e) => updateItem(item.id, { unitPriceText: e.target.value })}
+                          />
+                          {priceOptions.length > 0 && (
+                            <select
+                              className="price-unit-select"
+                              aria-label={`Item ${index + 1} price is per`}
+                              value={item.priceUnit || quantityUnitCode || ''}
+                              onChange={(e) =>
+                                updateItem(item.id, { priceUnit: e.target.value === quantityUnitCode ? '' : e.target.value })
+                              }
+                            >
+                              {priceOptions.map((code) => (
+                                <option key={code} value={code}>
+                                  per {code}
+                                </option>
+                              ))}
+                            </select>
+                          )}
+                        </div>
                       )}
                     </FormField>
                   </div>
+                  {lineItem?.priceUnit && (
+                    <p className="item-calculation">
+                      {formatQuantity(lineItem.quantityThousandths)} {lineItem.unit} × {money(lineItem.unitPriceCentavos)}/
+                      {lineItem.priceUnit} = <strong>{money(totals.lineAmounts[index] ?? 0)}</strong>
+                    </p>
+                  )}
                 </li>
               );
             })}

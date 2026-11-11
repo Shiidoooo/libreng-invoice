@@ -1,7 +1,9 @@
 import { MAX_LOGO_DATA_URL_LENGTH, isAllowedLogoDataUrl } from '../business/logo';
 import type { BusinessProfile, PaymentMethod } from '../business/types';
 import { isValidDateString } from '../dates/dates';
-import { MAX_DOCUMENT_AMOUNT_CENTAVOS, MAX_LINE_ITEMS, TEXT_LIMITS } from '../invoices/draft';
+import { MAX_DOCUMENT_AMOUNT_CENTAVOS, MAX_LINE_AMOUNT_CENTAVOS, MAX_LINE_ITEMS, TEXT_LIMITS } from '../invoices/draft';
+import { computeLineAmount } from '../invoices/totals';
+import { conversionRatio } from '../invoices/units';
 import type { NumberCounters } from '../invoices/numbering';
 import { DOCUMENT_KINDS, type BusinessDocument, type Discount, type LineItem, type Party } from '../invoices/types';
 import {
@@ -102,13 +104,23 @@ function parseParty(value: unknown, path: string): Party {
 
 function parseLineItem(value: unknown, path: string): LineItem {
   const item = asObject(value, path);
-  return {
+  const unit = asString(item.unit, `${path}.unit`, TEXT_LIMITS.itemUnit);
+  // Documents saved before price units existed have no priceUnit field.
+  let priceUnit: string | null = null;
+  if (item.priceUnit !== undefined && item.priceUnit !== null) {
+    priceUnit = asString(item.priceUnit, `${path}.priceUnit`, TEXT_LIMITS.itemUnit);
+    if (!conversionRatio(unit, priceUnit)) fail(`${path}.priceUnit`, `cannot be converted from "${unit}"`);
+  }
+  const lineItem: LineItem = {
     id: asString(item.id, `${path}.id`, MAX_ID_LENGTH),
     description: asString(item.description, `${path}.description`, TEXT_LIMITS.itemDescription),
     quantityThousandths: asInteger(item.quantityThousandths, `${path}.quantityThousandths`, 1, MAX_QUANTITY_THOUSANDTHS),
-    unit: asString(item.unit, `${path}.unit`, TEXT_LIMITS.itemUnit),
+    unit,
     unitPriceCentavos: asInteger(item.unitPriceCentavos, `${path}.unitPriceCentavos`, 0, MAX_UNIT_PRICE_CENTAVOS),
+    priceUnit,
   };
+  if (computeLineAmount(lineItem) > MAX_LINE_AMOUNT_CENTAVOS) fail(path, 'has an amount that is too large');
+  return lineItem;
 }
 
 function parseDiscount(value: unknown, path: string): Discount {

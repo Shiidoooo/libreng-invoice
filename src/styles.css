@@ -1493,3 +1493,31 @@ button:disabled,
     scroll-behavior: auto !important;
   }
 }
+
+/* ---------- Price per unit (e.g. ₱500 per kg) ---------- */
+.price-with-unit {
+  display: flex;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.price-with-unit .input-affix {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.price-unit-select {
+  width: auto;
+  flex: 0 0 auto;
+  padding-right: var(--space-2);
+}
+
+.item-calculation {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.item-calculation strong {
+  color: var(--color-text);
+}

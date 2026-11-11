@@ -1,4 +1,5 @@
 import type { BusinessDocument, Discount, LineItem } from './types';
+import { conversionRatio } from './units';
 
 export interface DocumentTotals {
   lineAmounts: number[];
@@ -17,9 +18,22 @@ function divideRoundHalfUp(numerator: bigint, divisor: bigint): number {
   return Number((numerator + divisor / 2n) / divisor);
 }
 
-/** quantity × unit price, rounded to the nearest centavo. BigInt keeps the intermediate product exact. */
-export function computeLineAmount(item: Pick<LineItem, 'quantityThousandths' | 'unitPriceCentavos'>): number {
-  return divideRoundHalfUp(BigInt(item.quantityThousandths) * BigInt(item.unitPriceCentavos), 1000n);
+/**
+ * quantity × unit price, converting units when the price is quoted per a different
+ * unit (500 g at ₱500/kg = ₱250). Rounded to the nearest centavo; BigInt keeps the
+ * intermediate product exact. Units that cannot be converted are treated as equal,
+ * but the editor never lets such a pair be saved.
+ */
+export function computeLineAmount(
+  item: Pick<LineItem, 'quantityThousandths' | 'unitPriceCentavos' | 'unit' | 'priceUnit'>,
+): number {
+  const ratio = item.priceUnit ? conversionRatio(item.unit, item.priceUnit) : null;
+  const numerator = BigInt(ratio?.numerator ?? 1);
+  const denominator = BigInt(ratio?.denominator ?? 1);
+  return divideRoundHalfUp(
+    BigInt(item.quantityThousandths) * BigInt(item.unitPriceCentavos) * numerator,
+    1000n * denominator,
+  );
 }
 
 /** A discount never exceeds the subtotal, so the total cannot go negative. */

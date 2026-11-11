@@ -12,11 +12,15 @@ import {
 } from '../money/money';
 import { DOCUMENT_KIND_CONFIG } from './documentKinds';
 import { suggestNextNumber, type NumberCounters } from './numbering';
+import { computeLineAmount } from './totals';
 import type { BusinessDocument, Discount, DocumentKind, LineItem, Party } from './types';
+import { conversionRatio, toMeasureUnitCode } from './units';
 
 export const MAX_LINE_ITEMS = 50;
 /** Upper bound for paid amounts and fixed discounts: ₱9,999,999,999.99. */
 export const MAX_DOCUMENT_AMOUNT_CENTAVOS = 999_999_999_999;
+/** One line's amount; with MAX_LINE_ITEMS this keeps every total a safe integer. */
+export const MAX_LINE_AMOUNT_CENTAVOS = MAX_DOCUMENT_AMOUNT_CENTAVOS;
 export const DEFAULT_DUE_IN_DAYS = 15;
 
 export const TEXT_LIMITS = {
@@ -37,6 +41,8 @@ export interface LineItemDraft {
   quantityText: string;
   unit: string;
   unitPriceText: string;
+  /** Unit code the price is per (e.g. "kg"), or '' when it is per the quantity's own unit. */
+  priceUnit: string;
 }
 
 export interface DocumentDraft {
@@ -64,7 +70,7 @@ export interface DocumentDraft {
 export type DraftErrors = Record<string, string>;
 
 export function createEmptyLineItem(id: string): LineItemDraft {
-  return { id, description: '', quantityText: '1', unit: 'pcs', unitPriceText: '' };
+  return { id, description: '', quantityText: '1', unit: 'pcs', unitPriceText: '', priceUnit: '' };
 }
 
 interface NewDraftOptions {
@@ -113,6 +119,7 @@ export function draftFromDocument(doc: BusinessDocument): DocumentDraft {
       quantityText: quantityToPlainText(item.quantityThousandths),
       unit: item.unit,
       unitPriceText: centavosToPlainText(item.unitPriceCentavos),
+      priceUnit: item.priceUnit ?? '',
     })),
     discountKind: doc.discount.kind,
     discountText:
@@ -191,13 +198,19 @@ export function convertDraft(draft: DocumentDraft, now: string): DraftConversion
     if (description === '') errors[`${prefix}.description`] = 'Required';
     checkLength(`${prefix}.description`, description, TEXT_LIMITS.itemDescription);
     checkLength(`${prefix}.unit`, item.unit, TEXT_LIMITS.itemUnit);
-    return {
+    const unit = item.unit.trim();
+    const lineItem: LineItem = {
       id: item.id,
       description,
       quantityThousandths: readNumber(`${prefix}.quantity`, parseQuantity(item.quantityText)),
-      unit: item.unit.trim(),
+      unit,
       unitPriceCentavos: readNumber(`${prefix}.unitPrice`, parseMoney(item.unitPriceText)),
+      priceUnit: resolvePriceUnit(unit, item.priceUnit),
     };
+    if (computeLineAmount(lineItem) > MAX_LINE_AMOUNT_CENTAVOS) {
+      errors[`${prefix}.unitPrice`] = 'This item’s amount is too large. Check the quantity, unit and price.';
+    }
+    return lineItem;
   });
 
   let discount: Discount = { kind: 'none' };
@@ -243,4 +256,14 @@ export function convertDraft(draft: DocumentDraft, now: string): DraftConversion
   };
 
   return { document, errors, isValid: Object.keys(errors).length === 0 };
+}
+
+/**
+ * Keeps a price unit only when it differs from, and converts to, the quantity's unit.
+ * A stale choice (the unit was changed to "pcs" after picking "per kg") is dropped
+ * rather than applied to units that cannot be converted.
+ */
+export function resolvePriceUnit(quantityUnit: string, priceUnit: string): string | null {
+  if (priceUnit === '' || priceUnit === toMeasureUnitCode(quantityUnit)) return null;
+  return conversionRatio(quantityUnit, priceUnit) ? priceUnit : null;
 }

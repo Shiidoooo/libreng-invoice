@@ -10,6 +10,11 @@ export interface LineItem {
   /** Free text such as "pcs", "pack", "kg" or "hr". */
   unit: string;
   unitPriceCentavos: number;
+  /**
+   * The unit the price is quoted per, when it differs from `unit` (e.g. sold in "grams",
+   * priced per "kg"). A unit code from units.ts, or null when the price is per `unit`.
+   */
+  priceUnit: string | null;
 }
 
 export type Discount =
