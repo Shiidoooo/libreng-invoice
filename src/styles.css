@@ -1804,3 +1804,38 @@ button:disabled,
     flex: 1 1 100%;
   }
 }
+
+.send-email-pdf {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-muted);
+}
+
+.send-email-pdf-text {
+  flex: 1 1 16rem;
+  margin: 0;
+}
+
+/* The sheet is laid out here at A4 width, off-screen, to be captured into the PDF. */
+.pdf-render-area {
+  position: fixed;
+  top: 0;
+  left: -10000px;
+  pointer-events: none;
+}
+
+.pdf-render-area .sheet {
+  border: none;
+  border-radius: 0;
+}
+
+@media print {
+  .pdf-render-area {
+    display: none !important;
+  }
+}

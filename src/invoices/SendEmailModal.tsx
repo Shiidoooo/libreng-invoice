@@ -1,7 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { BusinessProfile } from '../business/types';
+import { describeError } from '../errors/reportError';
 import { FormField } from '../ui/FormField';
 import { Modal } from '../ui/Modal';
+import { DocumentPreview } from './DocumentPreview';
+import { PDF_SHEET_WIDTH_PX, canShareFile, createDocumentPdf, downloadFile } from './documentPdf';
 import {
   EMAIL_MESSAGE_MAX_LENGTH,
   EMAIL_SUBJECT_MAX_LENGTH,
@@ -23,8 +27,9 @@ interface SendEmailModalProps {
 }
 
 /**
- * Prepares an email about a document and hands it to the seller's own Gmail or email app,
- * so it is sent from their address. Edits here apply to this email only.
+ * Prepares an email about a document, with the document as a PDF, and hands it to the
+ * seller's own Gmail, email app or share sheet, so it is sent from their own account.
+ * Edits here apply to this email only.
  */
 export function SendEmailModal({ document, profile, onClose }: SendEmailModalProps) {
   return (
@@ -37,9 +42,51 @@ export function SendEmailModal({ document, profile, onClose }: SendEmailModalPro
 
 type CopyState = 'idle' | 'copied' | 'failed';
 
+type PdfState = { status: 'making' } | { status: 'ready'; file: File } | { status: 'failed'; message: string };
+
+/**
+ * Lays the sheet out off-screen at A4 width (whatever the screen size) and turns it into
+ * a PDF file once, when the window opens. Phones only allow sharing right after a tap,
+ * so the file has to be ready before the person presses Share.
+ */
+function usePdfFile(document: BusinessDocument, profile: BusinessProfile) {
+  const sheetHostRef = useRef<HTMLDivElement>(null);
+  const [pdf, setPdf] = useState<PdfState>({ status: 'making' });
+
+  useEffect(() => {
+    let isCurrent = true;
+    const sheet = sheetHostRef.current?.querySelector<HTMLElement>('.sheet');
+    if (!sheet) return;
+    createDocumentPdf(sheet, document.number).then(
+      (file) => {
+        if (isCurrent) setPdf({ status: 'ready', file });
+      },
+      (error: unknown) => {
+        if (isCurrent) setPdf({ status: 'failed', message: describeError(error, 'make the PDF') });
+      },
+    );
+    return () => {
+      isCurrent = false;
+    };
+  }, [document, profile]);
+
+  const renderArea = createPortal(
+    <div ref={sheetHostRef} className="pdf-render-area" style={{ width: PDF_SHEET_WIDTH_PX }} aria-hidden="true">
+      <DocumentPreview document={document} profile={profile} />
+    </div>,
+    window.document.body,
+  );
+  return { pdf, renderArea };
+}
+
 function SendEmailForm({ document, profile, onClose }: { document: BusinessDocument; profile: BusinessProfile; onClose: () => void }) {
   const [email, setEmail] = useState<EmailContent>(() => buildEmail(document, profile));
   const [copyState, setCopyState] = useState<CopyState>('idle');
+  const { pdf, renderArea } = usePdfFile(document, profile);
+  const pdfFile = pdf.status === 'ready' ? pdf.file : null;
+  const canSharePdf = pdfFile !== null && canShareFile(pdfFile);
+  const canShareText = typeof navigator.share === 'function';
+
   const update = (changes: Partial<EmailContent>) => {
     setCopyState('idle');
     setEmail((current) => ({ ...current, ...changes }));
@@ -49,7 +96,6 @@ function SendEmailForm({ document, profile, onClose }: { document: BusinessDocum
   const isRecipientValid = !hasRecipient || isEmailAddress(email.to);
   const mailtoLink = buildMailtoLink(email);
   const isTooLongForMailto = mailtoLink.length > MAILTO_SAFE_LENGTH;
-  const canShare = typeof navigator.share === 'function';
 
   const handleCopy = async () => {
     try {
@@ -62,7 +108,11 @@ function SendEmailForm({ document, profile, onClose }: { document: BusinessDocum
 
   const handleShare = async () => {
     try {
-      await navigator.share({ title: email.subject, text: email.message });
+      await navigator.share({
+        title: email.subject,
+        text: email.message,
+        ...(canSharePdf && pdfFile ? { files: [pdfFile] } : {}),
+      });
     } catch {
       // The person closed the share sheet; nothing to report.
     }
@@ -70,17 +120,31 @@ function SendEmailForm({ document, profile, onClose }: { document: BusinessDocum
 
   return (
     <div className="send-email">
-      <ol className="send-email-steps">
-        <li>
-          <strong>Get the PDF first.</strong> Press <em>Get PDF</em>, choose “Save as PDF” and save it.{' '}
-          <button type="button" className="button-quiet" onClick={() => printDocument(document.number)}>
-            Get PDF
-          </button>
-        </li>
-        <li>
-          <strong>Check the email below,</strong> then open Gmail or your email app. Attach the PDF there and press Send.
-        </li>
-      </ol>
+      {renderArea}
+      <div className="send-email-pdf" role="status" aria-live="polite">
+        {pdf.status === 'making' && <p className="send-email-pdf-text">Making the PDF of {document.number}…</p>}
+        {pdf.status === 'ready' && (
+          <>
+            <p className="send-email-pdf-text">
+              <strong>{pdf.file.name}</strong> is ready.{' '}
+              {canSharePdf
+                ? 'Press “Share with PDF” and pick Gmail, Messenger or Viber. The PDF is attached for you.'
+                : 'Download it, open Gmail or your email app, and attach it there.'}
+            </p>
+            <button type="button" className="button-secondary" onClick={() => downloadFile(pdf.file)}>
+              Download PDF
+            </button>
+          </>
+        )}
+        {pdf.status === 'failed' && (
+          <>
+            <p className="banner banner-error">{pdf.message}</p>
+            <button type="button" className="button-secondary" onClick={() => printDocument(document.number)}>
+              Get PDF
+            </button>
+          </>
+        )}
+      </div>
 
       <FormField
         label="Send to"
@@ -131,7 +195,17 @@ function SendEmailForm({ document, profile, onClose }: { document: BusinessDocum
       )}
 
       <div className="send-email-actions">
-        <a className="button-primary" href={buildGmailLink(email)} target="_blank" rel="noopener noreferrer">
+        {canSharePdf && (
+          <button type="button" className="button-primary" onClick={() => void handleShare()}>
+            Share with PDF…
+          </button>
+        )}
+        <a
+          className={canSharePdf ? 'button-secondary' : 'button-primary'}
+          href={buildGmailLink(email)}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
           Open in Gmail
         </a>
         <a className="button-secondary" href={mailtoLink}>
@@ -140,9 +214,9 @@ function SendEmailForm({ document, profile, onClose }: { document: BusinessDocum
         <button type="button" className="button-secondary" onClick={() => void handleCopy()}>
           {copyState === 'copied' ? 'Copied' : 'Copy message'}
         </button>
-        {canShare && (
+        {canShareText && !canSharePdf && (
           <button type="button" className="button-secondary" onClick={() => void handleShare()}>
-            Share…
+            Share message…
           </button>
         )}
         <button type="button" className="button-quiet" onClick={onClose}>

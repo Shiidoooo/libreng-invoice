@@ -12,8 +12,10 @@ their documents are saved privately to their account (Supabase).
 - **Totals:** discount (percent or fixed), an extra fee (delivery, rush), down payment and balance due
 - **Business profile:** logo, address, optional TIN, payment options (GCash, Maya, banks)
 - **PDF** through the browser's print dialog, with a PAID stamp on fully paid invoices
-- **Email** a document from the seller's own Gmail or email app, with a message template they can edit in My
-  business (`{customer}`, `{total}`, `{due}`…). The app never sends email itself, so messages come from the seller's
+- **Email** a document from the seller's own Gmail, email app or phone share sheet, with a message template they can
+  edit in My business (`{customer}`, `{total}`, `{due}`…). The document is turned into a real PDF in the browser
+  (jsPDF + html2canvas-pro, loaded only when needed): on phones it is attached automatically through Share, on
+  computers it downloads so it can be attached. The app never sends email itself, so messages come from the seller's
   real address and the app cannot be used to send spam
 - **My documents:** search, filter by type and payment, amount still to collect, mark as paid, copy, delete
 - **Backup and restore** as JSON; **delete account** erases everything

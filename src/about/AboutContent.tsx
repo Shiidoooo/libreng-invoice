@@ -42,8 +42,8 @@ export function AboutContent() {
             print it directly.
           </li>
           <li>
-            To email it, press <strong>Email</strong>. Your own Gmail or email app opens with a ready message; attach the
-            PDF and send. You can change the message in <strong>My business</strong>.
+            To email it, press <strong>Email</strong>. On a phone, choose Share and pick Gmail, Messenger or Viber: the PDF is attached
+            for you. On a computer, the PDF downloads and Gmail opens with a ready message. You can change the message in <strong>My business</strong>.
           </li>
           <li>
             Find everything again in <strong>My documents</strong>, where you can see who still owes you and mark
