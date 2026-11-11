@@ -15,6 +15,11 @@ export interface LineItem {
    * priced per "kg"). A unit code from units.ts, or null when the price is per `unit`.
    */
   priceUnit: string | null;
+  /**
+   * The line total typed by the seller instead of being computed from quantity × price
+   * (e.g. 500 g of rice for ₱25). Null when the amount is computed.
+   */
+  enteredAmountCentavos: number | null;
 }
 
 export type Discount =

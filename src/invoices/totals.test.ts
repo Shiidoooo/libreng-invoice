@@ -5,7 +5,7 @@ import { computeLineAmount, computeTotals, getPaymentStatus } from './totals';
 import type { BusinessDocument, LineItem } from './types';
 
 function item(quantityThousandths: number, unitPriceCentavos: number): LineItem {
-  return { id: crypto.randomUUID(), description: 'x', quantityThousandths, unit: 'pcs', unitPriceCentavos, priceUnit: null };
+  return { id: crypto.randomUUID(), description: 'x', quantityThousandths, unit: 'pcs', unitPriceCentavos, priceUnit: null, enteredAmountCentavos: null };
 }
 
 type TotalsInput = Pick<BusinessDocument, 'items' | 'discount' | 'otherCharge' | 'amountPaidCentavos'>;

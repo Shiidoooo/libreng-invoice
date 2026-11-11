@@ -43,6 +43,9 @@ export interface LineItemDraft {
   unitPriceText: string;
   /** Unit code the price is per (e.g. "kg"), or '' when it is per the quantity's own unit. */
   priceUnit: string;
+  /** True when the seller types the line amount instead of a unit price. */
+  isAmountEntered: boolean;
+  amountText: string;
 }
 
 export interface DocumentDraft {
@@ -70,7 +73,16 @@ export interface DocumentDraft {
 export type DraftErrors = Record<string, string>;
 
 export function createEmptyLineItem(id: string): LineItemDraft {
-  return { id, description: '', quantityText: '1', unit: 'pcs', unitPriceText: '', priceUnit: '' };
+  return {
+    id,
+    description: '',
+    quantityText: '1',
+    unit: 'pcs',
+    unitPriceText: '',
+    priceUnit: '',
+    isAmountEntered: false,
+    amountText: '',
+  };
 }
 
 interface NewDraftOptions {
@@ -118,8 +130,10 @@ export function draftFromDocument(doc: BusinessDocument): DocumentDraft {
       description: item.description,
       quantityText: quantityToPlainText(item.quantityThousandths),
       unit: item.unit,
-      unitPriceText: centavosToPlainText(item.unitPriceCentavos),
+      unitPriceText: item.enteredAmountCentavos === null ? centavosToPlainText(item.unitPriceCentavos) : '',
       priceUnit: item.priceUnit ?? '',
+      isAmountEntered: item.enteredAmountCentavos !== null,
+      amountText: item.enteredAmountCentavos === null ? '' : centavosToPlainText(item.enteredAmountCentavos),
     })),
     discountKind: doc.discount.kind,
     discountText:
@@ -199,13 +213,27 @@ export function convertDraft(draft: DocumentDraft, now: string): DraftConversion
     checkLength(`${prefix}.description`, description, TEXT_LIMITS.itemDescription);
     checkLength(`${prefix}.unit`, item.unit, TEXT_LIMITS.itemUnit);
     const unit = item.unit.trim();
+    const quantityThousandths = readNumber(`${prefix}.quantity`, parseQuantity(item.quantityText));
+    if (item.isAmountEntered) {
+      // The seller typed the line total; no unit price is involved.
+      return {
+        id: item.id,
+        description,
+        quantityThousandths,
+        unit,
+        unitPriceCentavos: 0,
+        priceUnit: null,
+        enteredAmountCentavos: readNumber(`${prefix}.amount`, parseMoney(item.amountText, MAX_LINE_AMOUNT_CENTAVOS)),
+      };
+    }
     const lineItem: LineItem = {
       id: item.id,
       description,
-      quantityThousandths: readNumber(`${prefix}.quantity`, parseQuantity(item.quantityText)),
+      quantityThousandths,
       unit,
       unitPriceCentavos: readNumber(`${prefix}.unitPrice`, parseMoney(item.unitPriceText)),
       priceUnit: resolvePriceUnit(unit, item.priceUnit),
+      enteredAmountCentavos: null,
     };
     if (computeLineAmount(lineItem) > MAX_LINE_AMOUNT_CENTAVOS) {
       errors[`${prefix}.unitPrice`] = 'This item’s amount is too large. Check the quantity, unit and price.';

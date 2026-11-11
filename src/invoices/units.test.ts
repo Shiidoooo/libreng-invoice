@@ -4,7 +4,7 @@ import { computeLineAmount } from './totals';
 import { conversionRatio, priceUnitOptions, toMeasureUnitCode } from './units';
 
 function line(quantityThousandths: number, unit: string, unitPriceCentavos: number, priceUnit: string | null) {
-  return computeLineAmount({ quantityThousandths, unit, unitPriceCentavos, priceUnit });
+  return computeLineAmount({ quantityThousandths, unit, unitPriceCentavos, priceUnit, enteredAmountCentavos: null });
 }
 
 describe('toMeasureUnitCode', () => {

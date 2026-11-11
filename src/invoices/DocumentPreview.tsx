@@ -78,8 +78,17 @@ export function DocumentPreview({ document: doc, profile }: DocumentPreviewProps
                   {formatQuantity(item.quantityThousandths)} {item.unit}
                 </td>
                 <td className="numeric">
-                  {money(item.unitPriceCentavos)}
-                  {item.priceUnit && <span className="sheet-muted"> / {item.priceUnit}</span>}
+                  {item.enteredAmountCentavos !== null ? (
+                    // The seller typed the amount, so there is no unit price to show.
+                    <span className="sheet-muted" aria-label="No unit price">
+                      —
+                    </span>
+                  ) : (
+                    <>
+                      {money(item.unitPriceCentavos)}
+                      {item.priceUnit && <span className="sheet-muted"> / {item.priceUnit}</span>}
+                    </>
+                  )}
                 </td>
                 <td className="numeric">{money(totals.lineAmounts[index])}</td>
               </tr>

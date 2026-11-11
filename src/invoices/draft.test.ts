@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { EMPTY_PROFILE } from '../business/types';
 import { convertDraft, createNewDraft, draftFromDocument, duplicateAsDraft, type DocumentDraft } from './draft';
+import { computeTotals } from './totals';
 
 const NOW = '2026-11-11T08:00:00.000Z';
 let idCounter = 0;
@@ -90,5 +91,41 @@ describe('duplicateAsDraft', () => {
     expect(copy.amountPaidText).toBe('');
     expect(copy.items[0].id).not.toBe(original.items[0].id);
     expect(copy.items[0].description).toBe(original.items[0].description);
+  });
+});
+
+describe('typed line amounts', () => {
+  function draftWithTypedAmount(amountText: string): DocumentDraft {
+    const draft = newDraft();
+    draft.items[0] = {
+      ...draft.items[0],
+      description: 'Bigas',
+      quantityText: '500',
+      unit: 'grams',
+      unitPriceText: '999',
+      isAmountEntered: true,
+      amountText,
+    };
+    return draft;
+  }
+
+  it('uses the typed amount instead of quantity × price', () => {
+    const { document, isValid } = convertDraft(draftWithTypedAmount('25'), NOW);
+    expect(isValid).toBe(true);
+    expect(document.items[0]).toMatchObject({ enteredAmountCentavos: 2500, unitPriceCentavos: 0, priceUnit: null });
+    expect(computeTotals(document).total).toBe(2500);
+  });
+
+  it('reports an invalid typed amount on the amount field', () => {
+    const draft = draftWithTypedAmount('abc');
+    const { errors } = convertDraft(draft, NOW);
+    expect(errors[`items.${draft.items[0].id}.amount`]).toBeDefined();
+  });
+
+  it('round-trips a typed amount through the editor', () => {
+    const first = convertDraft(draftWithTypedAmount('25.50'), NOW).document;
+    const reopened = draftFromDocument(first);
+    expect(reopened.items[0]).toMatchObject({ isAmountEntered: true, amountText: '25.50' });
+    expect(convertDraft(reopened, NOW).document).toEqual(first);
   });
 });

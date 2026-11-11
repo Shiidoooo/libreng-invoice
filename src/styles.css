@@ -1521,3 +1521,10 @@ button:disabled,
 .item-calculation strong {
   color: var(--color-text);
 }
+
+.item-amount-toggle {
+  flex-wrap: wrap;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  min-height: auto;
+}

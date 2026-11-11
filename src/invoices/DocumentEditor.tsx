@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { BusinessProfile } from '../business/types';
 import { addDays } from '../dates/dates';
-import { CURRENCIES, formatMoney, formatQuantity, getCurrencySymbol, type CurrencyCode } from '../money/money';
+import { CURRENCIES, centavosToPlainText, formatMoney, formatQuantity, getCurrencySymbol, type CurrencyCode } from '../money/money';
 import { AffixInput } from '../ui/AffixInput';
 import { FormField } from '../ui/FormField';
 import { IconPlus, IconTrash } from '../ui/icons';
@@ -264,6 +264,20 @@ export function DocumentEditor({
                         />
                       )}
                     </FormField>
+                    {item.isAmountEntered ? (
+                      <FormField label="Amount" isRequired error={visibleErrors[`${prefix}.amount`]}>
+                        {(control) => (
+                          <AffixInput
+                            {...control}
+                            prefix={currencySymbol}
+                            inputMode="decimal"
+                            placeholder="0.00"
+                            value={item.amountText}
+                            onChange={(e) => updateItem(item.id, { amountText: e.target.value })}
+                          />
+                        )}
+                      </FormField>
+                    ) : (
                     <FormField
                       label={priceOptions.length > 0 ? 'Price' : 'Price each'}
                       error={visibleErrors[`${prefix}.unitPrice`]}
@@ -297,7 +311,26 @@ export function DocumentEditor({
                         </div>
                       )}
                     </FormField>
+                    )}
                   </div>
+                  <label className="checkbox item-amount-toggle">
+                    <input
+                      type="checkbox"
+                      checked={item.isAmountEntered}
+                      onChange={(e) =>
+                        updateItem(item.id, {
+                          isAmountEntered: e.target.checked,
+                          // Start from the current computed amount so the field is never blank.
+                          amountText:
+                            e.target.checked && item.amountText === '' && (totals.lineAmounts[index] ?? 0) > 0
+                              ? centavosToPlainText(totals.lineAmounts[index])
+                              : item.amountText,
+                        })
+                      }
+                    />
+                    Type the amount myself
+                    <span className="field-hint">(no price × quantity)</span>
+                  </label>
                   {lineItem?.priceUnit && (
                     <p className="item-calculation">
                       {formatQuantity(lineItem.quantityThousandths)} {lineItem.unit} × {money(lineItem.unitPriceCentavos)}/

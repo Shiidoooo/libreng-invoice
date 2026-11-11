@@ -118,6 +118,11 @@ function parseLineItem(value: unknown, path: string): LineItem {
     unit,
     unitPriceCentavos: asInteger(item.unitPriceCentavos, `${path}.unitPriceCentavos`, 0, MAX_UNIT_PRICE_CENTAVOS),
     priceUnit,
+    // Absent in documents saved before typed amounts existed.
+    enteredAmountCentavos:
+      item.enteredAmountCentavos === undefined || item.enteredAmountCentavos === null
+        ? null
+        : asInteger(item.enteredAmountCentavos, `${path}.enteredAmountCentavos`, 0, MAX_LINE_AMOUNT_CENTAVOS),
   };
   if (computeLineAmount(lineItem) > MAX_LINE_AMOUNT_CENTAVOS) fail(path, 'has an amount that is too large');
   return lineItem;

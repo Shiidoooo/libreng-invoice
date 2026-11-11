@@ -25,8 +25,9 @@ function divideRoundHalfUp(numerator: bigint, divisor: bigint): number {
  * but the editor never lets such a pair be saved.
  */
 export function computeLineAmount(
-  item: Pick<LineItem, 'quantityThousandths' | 'unitPriceCentavos' | 'unit' | 'priceUnit'>,
+  item: Pick<LineItem, 'quantityThousandths' | 'unitPriceCentavos' | 'unit' | 'priceUnit' | 'enteredAmountCentavos'>,
 ): number {
+  if (item.enteredAmountCentavos !== null) return item.enteredAmountCentavos;
   const ratio = item.priceUnit ? conversionRatio(item.unit, item.priceUnit) : null;
   const numerator = BigInt(ratio?.numerator ?? 1);
   const denominator = BigInt(ratio?.denominator ?? 1);

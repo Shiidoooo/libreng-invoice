@@ -71,3 +71,17 @@ describe('parseBackup price units', () => {
     expect(() => parseBackup(JSON.stringify(backup))).toThrow(/priceUnit/);
   });
 });
+
+describe('parseBackup typed amounts', () => {
+  it('reads documents saved before typed amounts existed', () => {
+    const legacy = JSON.parse(JSON.stringify(validBackup()));
+    delete legacy.documents[0].items[0].enteredAmountCentavos;
+    expect(parseBackup(JSON.stringify(legacy)).documents[0].items[0].enteredAmountCentavos).toBeNull();
+  });
+
+  it('rejects a negative typed amount', () => {
+    const backup = validBackup();
+    backup.documents[0].items[0] = { ...backup.documents[0].items[0], enteredAmountCentavos: -1 };
+    expect(() => parseBackup(JSON.stringify(backup))).toThrow(/enteredAmountCentavos/);
+  });
+});
