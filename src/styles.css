@@ -64,8 +64,38 @@
   --z-skip-link: 30;
 }
 
+/*
+ * Dark theme. Applies when the device prefers dark and the user has not picked light,
+ * or whenever the user picked dark (data-theme is set by src/theme/theme.ts).
+ * The two blocks must stay identical.
+ */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --color-bg: #111513;
+  --color-surface: #1a201d;
+  --color-surface-muted: #151a17;
+  --color-text: #e6ebe8;
+  --color-text-muted: #a2aea8;
+  --color-border: #313a35;
+  --color-border-strong: #4c5852;
+  --color-primary: #3fbf8f;
+  --color-primary-hover: #5fd3a6;
+  --color-primary-soft: #183429;
+  --color-on-primary: #07130e;
+  --color-focus: #7aa7ff;
+  --color-danger: #ff8a80;
+  --color-danger-bg: #3a1d1b;
+  --color-success: #6fdcb0;
+  --color-success-bg: #12302a;
+  --color-warning: #f3c06b;
+  --color-warning-bg: #3a2c12;
+  --color-info-bg: #1b2440;
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.4);
+  --shadow-raised: 0 -2px 12px rgb(0 0 0 / 0.5);
+}
+
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme='light']) {
     color-scheme: dark;
     --color-bg: #111513;
     --color-surface: #1a201d;
@@ -222,7 +252,7 @@ main:focus {
   padding: 0;
   height: 100%;
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
 }
 
 .app-nav button {
@@ -1527,4 +1557,179 @@ button:disabled,
   font-size: var(--text-sm);
   font-weight: 600;
   min-height: auto;
+}
+
+/* ---------- Danger button (solid) used in confirmation windows ---------- */
+.button-danger-solid {
+  min-height: var(--touch-target);
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-danger);
+  background: var(--color-danger);
+  color: var(--color-surface);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.button-danger-solid:hover {
+  filter: brightness(0.92);
+}
+
+/* ---------- Modal window (native <dialog>) ---------- */
+.modal {
+  width: min(100% - 2 * var(--space-4), 28rem);
+  max-height: calc(100vh - 2 * var(--space-6));
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-surface);
+  color: var(--color-text);
+  box-shadow: 0 20px 50px rgb(0 0 0 / 0.3);
+}
+
+.modal-large {
+  width: min(100% - 2 * var(--space-4), 42rem);
+}
+
+.modal::backdrop {
+  background: rgb(10 15 13 / 0.55);
+}
+
+.modal-body {
+  display: grid;
+  max-height: inherit;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-3) var(--space-2) var(--space-5);
+}
+
+.modal-title {
+  font-size: var(--text-lg);
+}
+
+.modal-content {
+  padding: 0 var(--space-5) var(--space-4);
+  overflow-y: auto;
+}
+
+.modal-footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-5);
+  border-top: 1px solid var(--color-border);
+  background: var(--color-surface-muted);
+  border-radius: 0 0 var(--radius) var(--radius);
+}
+
+.confirm-message {
+  color: var(--color-text-muted);
+}
+
+.confirm-message strong {
+  color: var(--color-text);
+}
+
+/* ---------- Choice list (radio options) ---------- */
+.choice-list {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.choice-option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--touch-target);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.choice-option > span {
+  display: grid;
+}
+
+.choice-option-label {
+  font-weight: 600;
+}
+
+.choice-option:has(input:checked) {
+  border-color: var(--color-primary);
+  background: var(--color-primary-soft);
+}
+
+/* ---------- About ---------- */
+.about-page {
+  max-width: 48rem;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.about {
+  display: grid;
+  gap: var(--space-5);
+}
+
+.about-section {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.about-section h3 {
+  font-size: var(--text-lg);
+}
+
+.about-list {
+  margin: 0;
+  padding-left: var(--space-5);
+  display: grid;
+  gap: var(--space-1);
+}
+
+.about-notice {
+  padding: var(--space-4);
+  border-radius: var(--radius-sm);
+  background: var(--color-warning-bg);
+}
+
+.sign-in {
+  gap: var(--space-3);
+  align-content: center;
+}
+
+.sign-in-about-link {
+  justify-self: center;
+}
+
+/* ---------- Crash screen ---------- */
+.crash-screen h1 {
+  font-size: var(--text-xl);
+}
+
+.dev-details pre {
+  max-height: 20rem;
+  overflow: auto;
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-muted);
+  font-size: var(--text-xs);
+  white-space: pre-wrap;
+}
+
+/* Four items in the phone navigation: keep labels on one line. */
+@media (max-width: 767px) {
+  .app-nav button span {
+    white-space: nowrap;
+    font-size: 0.6875rem;
+  }
 }

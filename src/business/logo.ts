@@ -1,4 +1,6 @@
-/** Logos are stored inside the browser database, so keep them small. */
+import { AppError } from '../errors/appError';
+
+/** Logos are stored in the database with the business profile, so keep them small. */
 export const MAX_LOGO_FILE_BYTES = 300 * 1024;
 /** Base64 grows data by 4/3, plus the "data:image/...;base64," header. */
 export const MAX_LOGO_DATA_URL_LENGTH = Math.ceil((MAX_LOGO_FILE_BYTES * 4) / 3) + 64;
@@ -7,7 +9,12 @@ type LogoMimeType = 'image/png' | 'image/jpeg' | 'image/webp';
 
 const LOGO_DATA_URL_PATTERN = /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/;
 
-export class LogoFileError extends Error {}
+export class LogoFileError extends AppError {
+  constructor(message: string) {
+    super('validation', message);
+    this.name = 'LogoFileError';
+  }
+}
 
 /** Identifies the image type from the file's first bytes, ignoring its name and claimed type. */
 function detectImageType(bytes: Uint8Array): LogoMimeType | null {

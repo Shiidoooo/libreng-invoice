@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { AboutContent } from './about/AboutContent';
 import { SettingsPage } from './business/SettingsPage';
 import type { BusinessProfile } from './business/types';
 import { toLocalDateString } from './dates/dates';
+import { describeError } from './errors/reportError';
 import { DOCUMENT_KIND_CONFIG } from './invoices/documentKinds';
 import { DocumentEditor } from './invoices/DocumentEditor';
 import { DocumentHistory } from './invoices/DocumentHistory';
@@ -9,19 +11,22 @@ import { createNewDraft, draftFromDocument, duplicateAsDraft, type DocumentDraft
 import { computeTotals } from './invoices/totals';
 import type { BusinessDocument, DocumentKind, Party } from './invoices/types';
 import { deleteDocument, loadAppData, saveDocument, saveProfile, type AppData } from './storage/database';
-import { IconCreate, IconDocuments, IconPlus, IconSettings, IconSignOut } from './ui/icons';
+import { setThemePreference, useTheme } from './theme/theme';
+import { IconCreate, IconDocuments, IconInfo, IconMoon, IconPlus, IconSettings, IconSignOut, IconSun } from './ui/icons';
+import { useConfirm } from './ui/useConfirm';
 
 interface WorkspaceProps {
   userEmail: string;
   onSignOut: () => void;
 }
 
-type View = 'editor' | 'history' | 'settings';
+type View = 'editor' | 'history' | 'settings' | 'about';
 
 const NAV_ITEMS: { view: View; label: string; icon: ReactNode }[] = [
   { view: 'editor', label: 'Create', icon: <IconCreate /> },
   { view: 'history', label: 'My documents', icon: <IconDocuments /> },
   { view: 'settings', label: 'My business', icon: <IconSettings /> },
+  { view: 'about', label: 'About', icon: <IconInfo /> },
 ];
 
 type LoadState = { status: 'loading' } | { status: 'error'; message: string } | { status: 'ready'; data: AppData };
@@ -37,6 +42,8 @@ export function Workspace({ userEmail, onSignOut }: WorkspaceProps) {
   const [draft, setDraft] = useState<DocumentDraft | null>(null);
   /** True once the user edits the draft; cleared when it is saved or replaced. */
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const { confirm, confirmDialog } = useConfirm();
+  const { resolved: resolvedTheme } = useTheme();
 
   const applyLoadedData = useCallback((data: AppData) => {
     setLoadState({ status: 'ready', data });
@@ -47,7 +54,7 @@ export function Workspace({ userEmail, onSignOut }: WorkspaceProps) {
   }, []);
 
   const applyLoadError = useCallback((error: unknown) => {
-    setLoadState({ status: 'error', message: error instanceof Error ? error.message : 'Could not load your data.' });
+    setLoadState({ status: 'error', message: describeError(error, 'load your documents', 'Could not load your documents.') });
   }, []);
 
   /** Re-reads everything from the database. The current screen stays visible while it runs. */
@@ -71,7 +78,7 @@ export function Workspace({ userEmail, onSignOut }: WorkspaceProps) {
     };
   }, [applyLoadedData, applyLoadError]);
 
-  // Warn before closing or reloading the tab with unsaved work.
+  // Warn before closing or reloading the tab with unsaved work. Browsers only allow their own wording here.
   useEffect(() => {
     if (!hasUnsavedChanges) return;
     const handleBeforeUnload = (event: BeforeUnloadEvent) => event.preventDefault();
@@ -98,7 +105,7 @@ export function Workspace({ userEmail, onSignOut }: WorkspaceProps) {
     );
   }
   if (loadState.status === 'error' || !data || !draft) {
-    const message = loadState.status === 'error' ? loadState.message : 'Could not load your data.';
+    const message = loadState.status === 'error' ? loadState.message : 'Could not load your documents.';
     return (
       <div className="app-message">
         <p className="banner banner-error" role="alert">
@@ -120,10 +127,21 @@ export function Workspace({ userEmail, onSignOut }: WorkspaceProps) {
 
   const updateData = (changes: Partial<AppData>) => setLoadState({ status: 'ready', data: { ...data, ...changes } });
 
-  /** Asks before throwing away unsaved edits. Returns true when it is fine to continue. */
-  const confirmDiscardChanges = () =>
+  /** Asks before throwing away unsaved edits. Resolves true when it is fine to continue. */
+  const confirmDiscardChanges = async () =>
     !hasUnsavedChanges ||
-    window.confirm(`You have unsaved changes on ${draft.number || 'this document'}.\n\nLeave without saving?`);
+    confirm({
+      title: 'Leave without saving?',
+      message: (
+        <p>
+          You have changes on <strong>{draft.number || 'this document'}</strong> that are not saved yet. If you leave now,
+          they will be lost.
+        </p>
+      ),
+      confirmLabel: 'Leave without saving',
+      cancelLabel: 'Keep editing',
+      tone: 'danger',
+    });
 
   const replaceDraft = (next: DocumentDraft) => {
     setDraft(next);
@@ -137,10 +155,16 @@ export function Workspace({ userEmail, onSignOut }: WorkspaceProps) {
     return saved;
   };
 
-  const startNewDocument = (kind: DocumentKind = draft.kind) => {
-    if (!confirmDiscardChanges()) return;
+  const startNewDocument = async (kind: DocumentKind = draft.kind) => {
+    if (!(await confirmDiscardChanges())) return;
     replaceDraft(createNewDraft({ kind, today: today(), counters: data.counters, profile: data.profile, createId }));
     setView('editor');
+  };
+
+  /** From the empty documents list: continue a new document in progress rather than discarding it. */
+  const goToCreate = () => {
+    if (draft.isNew) setView('editor');
+    else void startNewDocument('invoice');
   };
 
   const handleSaveFromEditor = async (doc: BusinessDocument) => {
@@ -166,12 +190,13 @@ export function Workspace({ userEmail, onSignOut }: WorkspaceProps) {
     updateData({ profile });
   };
 
-  const handleSignOut = () => {
-    if (confirmDiscardChanges()) onSignOut();
+  const handleSignOut = async () => {
+    if (await confirmDiscardChanges()) onSignOut();
   };
 
   const isProfileMissing = data.profile.name.trim() === '';
   const editorHeading = draft.isNew ? `New ${DOCUMENT_KIND_CONFIG[draft.kind].title.toLowerCase()}` : `Editing ${draft.number}`;
+  const nextTheme = resolvedTheme === 'dark' ? 'light' : 'dark';
 
   return (
     <div className="app-shell">
@@ -198,10 +223,25 @@ export function Workspace({ userEmail, onSignOut }: WorkspaceProps) {
           </ul>
         </nav>
         <div className="app-account">
+          <button
+            type="button"
+            className="icon-button"
+            aria-label={`Switch to ${nextTheme} mode`}
+            title={`Switch to ${nextTheme} mode`}
+            onClick={() => setThemePreference(nextTheme)}
+          >
+            {resolvedTheme === 'dark' ? <IconSun /> : <IconMoon />}
+          </button>
           <span className="app-account-email" title={userEmail}>
             {userEmail}
           </span>
-          <button type="button" className="icon-button" aria-label={`Sign out of ${userEmail}`} onClick={handleSignOut}>
+          <button
+            type="button"
+            className="icon-button"
+            aria-label={`Sign out of ${userEmail}`}
+            title="Sign out"
+            onClick={() => void handleSignOut()}
+          >
             <IconSignOut />
           </button>
         </div>
@@ -214,7 +254,7 @@ export function Workspace({ userEmail, onSignOut }: WorkspaceProps) {
           </p>
         )}
 
-        {isProfileMissing && view !== 'settings' && (
+        {isProfileMissing && view !== 'settings' && view !== 'about' && (
           <div className="banner banner-info setup-banner">
             <p>
               <strong>Welcome!</strong> Add your business name and payment details so they appear on your documents.
@@ -230,7 +270,7 @@ export function Workspace({ userEmail, onSignOut }: WorkspaceProps) {
             <div className="page-heading">
               <h2>{editorHeading}</h2>
               {!draft.isNew || hasUnsavedChanges ? (
-                <button type="button" className="button-secondary" onClick={() => startNewDocument()}>
+                <button type="button" className="button-secondary" onClick={() => void startNewDocument()}>
                   <IconPlus /> New document
                 </button>
               ) : null}
@@ -254,29 +294,38 @@ export function Workspace({ userEmail, onSignOut }: WorkspaceProps) {
         {view === 'history' && (
           <DocumentHistory
             documents={data.documents}
-            onOpen={(doc) => {
-              if (draft.id !== doc.id && !confirmDiscardChanges()) return;
-              if (draft.id !== doc.id) replaceDraft(draftFromDocument(doc));
+            onOpen={async (doc) => {
+              if (draft.id !== doc.id) {
+                if (!(await confirmDiscardChanges())) return;
+                replaceDraft(draftFromDocument(doc));
+              }
               setView('editor');
             }}
-            onDuplicate={(doc) => {
-              if (!confirmDiscardChanges()) return;
+            onDuplicate={async (doc) => {
+              if (!(await confirmDiscardChanges())) return;
               replaceDraft(duplicateAsDraft(doc, { today: today(), counters: data.counters, createId }));
               setView('editor');
             }}
             onMarkPaid={handleMarkPaid}
             onDelete={handleDelete}
-            onCreate={() => startNewDocument('invoice')}
+            onCreate={goToCreate}
           />
         )}
         {view === 'settings' && (
           <SettingsPage profile={data.profile} onSaveProfile={handleSaveProfile} onDataImported={reload} createId={createId} now={now} />
+        )}
+        {view === 'about' && (
+          <section className="card about-page" aria-labelledby="about-heading">
+            <h2 id="about-heading">About Libreng Invoice</h2>
+            <AboutContent />
+          </section>
         )}
       </main>
 
       <footer className="app-footer">
         <p>Free to use. Documents made here are not BIR-registered official receipts or invoices.</p>
       </footer>
+      {confirmDialog}
     </div>
   );
 }

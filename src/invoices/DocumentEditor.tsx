@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import type { BusinessProfile } from '../business/types';
 import { addDays } from '../dates/dates';
 import { CURRENCIES, centavosToPlainText, formatMoney, formatQuantity, getCurrencySymbol, type CurrencyCode } from '../money/money';
+import { describeError } from '../errors/reportError';
 import { AffixInput } from '../ui/AffixInput';
 import { FormField } from '../ui/FormField';
 import { IconPlus, IconTrash } from '../ui/icons';
@@ -114,7 +115,7 @@ export function DocumentEditor({
       setSaveMessage(shouldPrint ? 'Saved. Choose “Save as PDF” in the print window.' : `Saved ${conversion.document.number}.`);
       if (shouldPrint) printDocument(conversion.document.number);
     } catch (error) {
-      setSaveError(error instanceof Error ? error.message : 'Could not save. Please try again.');
+      setSaveError(describeError(error, `save ${conversion.document.number}`, 'Could not save. Please try again.'));
     } finally {
       setIsSaving(false);
     }

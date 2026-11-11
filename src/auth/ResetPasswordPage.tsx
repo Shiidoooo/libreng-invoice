@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
+import { describeError } from '../errors/reportError';
 import { FormField } from '../ui/FormField';
-import { AuthFlowError, PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH, signOut, updatePassword, validateNewPassword } from './session';
+import { PASSWORD_MAX_LENGTH, PASSWORD_MIN_LENGTH, signOut, updatePassword, validateNewPassword } from './session';
 
 /** Shown after the user opens a password-reset link from their email. */
 export function ResetPasswordPage({ email }: { email: string }) {
@@ -23,7 +24,7 @@ export function ResetPasswordPage({ email }: { email: string }) {
       await updatePassword(password);
       // The session listener moves on to the app once the password is updated.
     } catch (error) {
-      setErrors({ form: error instanceof AuthFlowError ? error.message : 'Could not change the password. Please try again.' });
+      setErrors({ form: describeError(error, 'set a new password', 'Could not change the password. Please try again.') });
       setIsSaving(false);
     }
   };

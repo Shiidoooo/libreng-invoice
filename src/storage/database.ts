@@ -10,6 +10,7 @@ import type { NumberCounters } from '../invoices/numbering';
 import type { BusinessDocument } from '../invoices/types';
 import { BACKUP_APP_ID, BACKUP_VERSION, parseDocument, parseProfile, type Backup } from './backupFormat';
 import { requireSupabase } from './supabaseClient';
+import { AppError, OFFLINE_MESSAGE, RATE_LIMITED_MESSAGE } from '../errors/appError';
 
 const PAGE_SIZE = 1000;
 /** Upper bound on documents loaded at once, so a huge account cannot freeze the tab. */
@@ -22,9 +23,13 @@ const DOCUMENT_COLUMNS =
 const PROFILE_COLUMNS =
   'name, address, phone, email, tin, logo_data_url, payment_methods, default_currency, default_notes';
 
-/** An error whose message is safe and useful to show the user. */
-export class StorageError extends Error {}
+/** A database failure with a customer-safe message; the raw error is kept as `cause` for developers. */
+export class StorageError extends AppError {}
 export class DuplicateNumberError extends StorageError {}
+
+/** SQLSTATE codes raised by our own database triggers (supabase/migrations/0002). */
+const RATE_LIMITED = 'PT429';
+const DOCUMENT_LIMIT_REACHED = 'PT422';
 
 export interface AppData {
   profile: BusinessProfile;
@@ -64,16 +69,39 @@ interface ProfileRow {
   default_notes: string;
 }
 
-function toStorageError(error: PostgrestError | Error, action: string): StorageError {
-  // Full details go to the developer console only; the user gets a plain message.
-  console.error(`Database error while trying to ${action}`, error);
-  if ('code' in error && error.code === UNIQUE_VIOLATION) {
-    return new DuplicateNumberError('That number is already used by another document of the same type. Use a different number.');
+/**
+ * Classifies a Supabase error. The customer message never includes the raw database
+ * text; reportError() logs that for developers from `cause`.
+ */
+export function toStorageError(error: PostgrestError | Error, action: string): StorageError {
+  const code = 'code' in error && typeof error.code === 'string' ? error.code : '';
+  const options = { cause: error };
+  if (code === UNIQUE_VIOLATION) {
+    return new DuplicateNumberError(
+      'conflict',
+      'That number is already used by another document of the same type. Use a different number.',
+      options,
+    );
+  }
+  if (code === RATE_LIMITED) return new StorageError('rate_limited', RATE_LIMITED_MESSAGE, options);
+  if (code === DOCUMENT_LIMIT_REACHED) {
+    return new StorageError(
+      'validation',
+      'Your account has reached the maximum number of documents. Delete documents you no longer need, then try again.',
+      options,
+    );
+  }
+  // PostgREST JWT errors (PGRST301-303) mean the login session ended.
+  if (code.startsWith('PGRST30')) {
+    return new StorageError('unauthenticated', 'Your session has ended. Please sign out and sign in again.', options);
+  }
+  if (code === '42501') {
+    return new StorageError('forbidden', `You do not have permission to ${action}.`, options);
   }
   if (error.name === 'AbortError' || error.name === 'TimeoutError' || error.message.includes('Failed to fetch')) {
-    return new StorageError(`Could not ${action}: the server did not respond. Check your internet connection and try again.`);
+    return new StorageError('transient', `Could not ${action}. ${OFFLINE_MESSAGE}`, options);
   }
-  return new StorageError(`Could not ${action}. Please try again.`);
+  return new StorageError('dependency', `Could not ${action}. Please try again.`, options);
 }
 
 function rowToDocument(row: DocumentRow): BusinessDocument {
@@ -206,13 +234,13 @@ export async function saveDocument(doc: BusinessDocument): Promise<{ document: B
 export async function deleteDocument(doc: BusinessDocument): Promise<void> {
   const { data, error } = await requireSupabase().from('documents').delete().eq('id', doc.id).select('id');
   if (error) throw toStorageError(error, `delete ${doc.number}`);
-  if (data.length === 0) throw new StorageError(`${doc.number} was not found. It may already be deleted; refresh the page.`);
+  if (data.length === 0) throw new StorageError('not_found', `${doc.number} was not found. It may already be deleted; refresh the page.`);
 }
 
 async function currentUserId(): Promise<string> {
   const { data } = await requireSupabase().auth.getSession();
   const userId = data.session?.user.id;
-  if (!userId) throw new StorageError('You are signed out. Sign in again to save.');
+  if (!userId) throw new StorageError('unauthenticated', 'You are signed out. Sign in again to save.');
   return userId;
 }
 

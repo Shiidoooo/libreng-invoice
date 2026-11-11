@@ -1,3 +1,4 @@
+import { AppError } from '../errors/appError';
 import { MAX_LOGO_DATA_URL_LENGTH, isAllowedLogoDataUrl } from '../business/logo';
 import type { BusinessProfile, PaymentMethod } from '../business/types';
 import { isValidDateString } from '../dates/dates';
@@ -37,7 +38,12 @@ export interface Backup {
  * so every field is checked against the same limits the editor enforces.
  * Throws BackupFormatError with a plain-language message on the first problem.
  */
-export class BackupFormatError extends Error {}
+export class BackupFormatError extends AppError {
+  constructor(message: string) {
+    super('validation', message);
+    this.name = 'BackupFormatError';
+  }
+}
 
 type UnknownObject = Record<string, unknown>;
 

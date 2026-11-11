@@ -70,6 +70,8 @@ export function computeTotals(
 }
 
 export function getPaymentStatus(totals: Pick<DocumentTotals, 'total' | 'amountPaid'>): PaymentStatus {
+  // Nothing to collect (e.g. a fully discounted invoice) counts as paid.
+  if (totals.total <= 0) return 'paid';
   if (totals.amountPaid <= 0) return 'unpaid';
   if (totals.amountPaid >= totals.total) return 'paid';
   return 'partial';

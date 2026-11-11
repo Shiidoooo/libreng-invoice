@@ -1,5 +1,7 @@
 import type { AuthError, Session } from '@supabase/supabase-js';
 import { useEffect, useState } from 'react';
+import { AppError, OFFLINE_MESSAGE } from '../errors/appError';
+import { reportError } from '../errors/reportError';
 import { requireSupabase } from '../storage/supabaseClient';
 
 export type SessionState =
@@ -16,7 +18,7 @@ export const EMAIL_MAX_LENGTH = 254;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 /** A sign-in problem whose message is safe to show as-is. */
-export class AuthFlowError extends Error {}
+export class AuthFlowError extends AppError {}
 
 /** Follows the Supabase session, including the redirect back from Google, reset links and other tabs. */
 export function useSession(): SessionState {
@@ -69,22 +71,25 @@ export function validateNewPassword(password: string): string | null {
 }
 
 function toFriendlyError(error: AuthError, fallback: string): AuthFlowError {
-  console.error('Auth error', error.code ?? error.status, error.message);
+  const options = { cause: error };
   switch (error.code) {
     // Same message for wrong password and unknown email, so the form doesn't reveal who has an account.
     case 'invalid_credentials':
-      return new AuthFlowError('Incorrect email or password.');
+      return new AuthFlowError('validation', 'Incorrect email or password.', options);
     case 'email_not_confirmed':
-      return new AuthFlowError('Please confirm your email first. Check your inbox for the confirmation link.');
+      return new AuthFlowError('validation', 'Please confirm your email first. Check your inbox for the confirmation link.', options);
     case 'weak_password':
-      return new AuthFlowError('That password is too easy to guess. Try a longer one, like a short phrase.');
+      return new AuthFlowError('validation', 'That password is too easy to guess. Try a longer one, like a short phrase.', options);
     case 'same_password':
-      return new AuthFlowError('Choose a password different from your current one.');
+      return new AuthFlowError('validation', 'Choose a password different from your current one.', options);
     case 'over_request_rate_limit':
     case 'over_email_send_rate_limit':
-      return new AuthFlowError('Too many attempts. Please wait a few minutes and try again.');
+      return new AuthFlowError('rate_limited', 'Too many attempts. Please wait a few minutes and try again.', options);
     default:
-      return new AuthFlowError(fallback);
+      if (error.status === 0 || error.message.includes('Failed to fetch')) {
+        return new AuthFlowError('transient', OFFLINE_MESSAGE, options);
+      }
+      return new AuthFlowError('dependency', fallback, options);
   }
 }
 
@@ -125,7 +130,8 @@ export async function requestPasswordReset(email: string): Promise<void> {
   if (error && (error.code === 'over_request_rate_limit' || error.code === 'over_email_send_rate_limit')) {
     throw toFriendlyError(error, '');
   }
-  if (error) console.error('Password reset request failed', error.code ?? error.status);
+  // Other failures are logged for developers but not shown, so the answer is the same for every email.
+  if (error) reportError(toFriendlyError(error, 'Could not send the reset email.'), 'send a password reset email');
 }
 
 export async function updatePassword(newPassword: string): Promise<void> {

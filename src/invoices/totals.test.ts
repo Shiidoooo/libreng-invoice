@@ -67,6 +67,10 @@ describe('computeTotals', () => {
 });
 
 describe('getPaymentStatus', () => {
+  it('treats an invoice with nothing to collect as paid', () => {
+    expect(getPaymentStatus({ total: 0, amountPaid: 0 })).toBe('paid');
+  });
+
   it.each([
     [0, 'unpaid'],
     [100, 'partial'],

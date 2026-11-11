@@ -2,7 +2,9 @@ import { useMemo, useState } from 'react';
 import { formatDisplayDate } from '../dates/dates';
 import { formatMoney, type CurrencyCode } from '../money/money';
 import { FormField } from '../ui/FormField';
+import { describeError } from '../errors/reportError';
 import { IconPlus } from '../ui/icons';
+import { useConfirm } from '../ui/useConfirm';
 import { DOCUMENT_KIND_CONFIG } from './documentKinds';
 import { computeTotals, getPaymentStatus, type DocumentTotals, type PaymentStatus } from './totals';
 import { DOCUMENT_KINDS, type BusinessDocument, type DocumentKind } from './types';
@@ -24,8 +26,8 @@ interface DocumentRow {
 
 interface DocumentHistoryProps {
   documents: BusinessDocument[];
-  onOpen: (doc: BusinessDocument) => void;
-  onDuplicate: (doc: BusinessDocument) => void;
+  onOpen: (doc: BusinessDocument) => void | Promise<void>;
+  onDuplicate: (doc: BusinessDocument) => void | Promise<void>;
   onMarkPaid: (doc: BusinessDocument) => Promise<void>;
   onDelete: (doc: BusinessDocument) => Promise<void>;
   onCreate: () => void;
@@ -37,6 +39,7 @@ export function DocumentHistory({ documents, onOpen, onDuplicate, onMarkPaid, on
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [busyId, setBusyId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const { confirm, confirmDialog } = useConfirm();
 
   const rows = useMemo<DocumentRow[]>(
     () =>
@@ -72,22 +75,34 @@ export function DocumentHistory({ documents, onOpen, onDuplicate, onMarkPaid, on
     });
   }, [rows, search, kindFilter, statusFilter]);
 
-  const runAction = async (doc: BusinessDocument, action: (doc: BusinessDocument) => Promise<void>) => {
+  const runAction = async (doc: BusinessDocument, action: (doc: BusinessDocument) => Promise<void>, context: string) => {
     setBusyId(doc.id);
     setActionError(null);
     try {
       await action(doc);
     } catch (error) {
-      setActionError(error instanceof Error ? error.message : 'Something went wrong. Please try again.');
+      setActionError(describeError(error, `${context} ${doc.number}`));
     } finally {
       setBusyId(null);
     }
   };
 
-  const handleDelete = (doc: BusinessDocument) => {
+  const handleDelete = async (doc: BusinessDocument) => {
     const title = DOCUMENT_KIND_CONFIG[doc.kind].title;
-    const who = doc.customer.name ? ` for ${doc.customer.name}` : '';
-    if (window.confirm(`Delete ${title} ${doc.number}${who}?\n\nThis cannot be undone.`)) void runAction(doc, onDelete);
+    const isConfirmed = await confirm({
+      title: `Delete ${title.toLowerCase()}?`,
+      message: (
+        <p>
+          <strong>
+            {title} {doc.number}
+          </strong>
+          {doc.customer.name && <> for {doc.customer.name}</>} will be deleted permanently. This cannot be undone.
+        </p>
+      ),
+      confirmLabel: `Delete ${doc.number}`,
+      tone: 'danger',
+    });
+    if (isConfirmed) await runAction(doc, onDelete, 'delete');
   };
 
   if (documents.length === 0) {
@@ -167,7 +182,7 @@ export function DocumentHistory({ documents, onOpen, onDuplicate, onMarkPaid, on
             return (
               <li key={doc.id} className="document-card card">
                 <div className="document-card-main">
-                  <button type="button" className="document-card-open" onClick={() => onOpen(doc)}>
+                  <button type="button" className="document-card-open" onClick={() => void onOpen(doc)}>
                     <span className="document-card-customer">{doc.customer.name || 'No customer name'}</span>
                     <span className="document-card-meta">
                       {config.title} · {doc.number} · {formatDisplayDate(doc.issueDate)}
@@ -183,15 +198,15 @@ export function DocumentHistory({ documents, onOpen, onDuplicate, onMarkPaid, on
                 </div>
                 <div className="document-card-actions">
                   {status && status !== 'paid' && (
-                    <button type="button" className="button-quiet" disabled={isBusy} onClick={() => void runAction(doc, onMarkPaid)}>
+                    <button type="button" className="button-quiet" disabled={isBusy} onClick={() => void runAction(doc, onMarkPaid, 'mark as paid')}>
                       {isBusy ? 'Saving…' : 'Mark as paid'}
                       <span className="visually-hidden"> {doc.number}</span>
                     </button>
                   )}
-                  <button type="button" className="button-quiet" onClick={() => onDuplicate(doc)}>
+                  <button type="button" className="button-quiet" onClick={() => void onDuplicate(doc)}>
                     Make a copy<span className="visually-hidden"> of {doc.number}</span>
                   </button>
-                  <button type="button" className="button-danger" disabled={isBusy} onClick={() => handleDelete(doc)}>
+                  <button type="button" className="button-danger" disabled={isBusy} onClick={() => void handleDelete(doc)}>
                     Delete<span className="visually-hidden"> {doc.number}</span>
                   </button>
                 </div>
@@ -200,6 +215,7 @@ export function DocumentHistory({ documents, onOpen, onDuplicate, onMarkPaid, on
           })}
         </ul>
       )}
+      {confirmDialog}
     </section>
   );
 }

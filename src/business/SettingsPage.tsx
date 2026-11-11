@@ -1,10 +1,12 @@
+import { setThemePreference, useTheme, type ThemePreference } from '../theme/theme';
+import { describeError } from '../errors/reportError';
 import { useState, type ChangeEvent } from 'react';
 import { CURRENCIES, type CurrencyCode } from '../money/money';
 import { TEXT_LIMITS } from '../invoices/draft';
 import { BackupFormatError, MAX_BACKUP_FILE_BYTES, parseBackup, parseProfile } from '../storage/backupFormat';
 import { createBackup, deleteMyAccount, importBackup } from '../storage/database';
 import { FormField } from '../ui/FormField';
-import { LogoFileError, readLogoFile } from './logo';
+import { readLogoFile } from './logo';
 import type { BusinessProfile, PaymentMethod } from './types';
 
 const MAX_PAYMENT_METHODS = 5;
@@ -43,7 +45,7 @@ export function SettingsPage({ profile, onSaveProfile, onDataImported, createId,
     } catch (error) {
       setProfileFeedback({
         tone: 'error',
-        message: error instanceof LogoFileError ? error.message : 'Could not read that image. Try another file.',
+        message: describeError(error, 'read the logo image', 'Could not read that image. Try another file.'),
       });
     }
   };
@@ -64,7 +66,7 @@ export function SettingsPage({ profile, onSaveProfile, onDataImported, createId,
       const message =
         error instanceof BackupFormatError
           ? error.message.replace('Invalid backup file: ', 'Please check: ')
-          : 'Could not save. Please try again.';
+          : describeError(error, 'save business details', 'Could not save. Please try again.');
       setProfileFeedback({ tone: 'error', message });
     } finally {
       setIsSaving(false);
@@ -83,8 +85,8 @@ export function SettingsPage({ profile, onSaveProfile, onDataImported, createId,
       link.click();
       URL.revokeObjectURL(url);
       setBackupFeedback({ tone: 'success', message: `Backup downloaded with ${backup.documents.length} document(s).` });
-    } catch {
-      setBackupFeedback({ tone: 'error', message: 'Could not create the backup. Please try again.' });
+    } catch (error) {
+      setBackupFeedback({ tone: 'error', message: describeError(error, 'download a backup', 'Could not create the backup. Please try again.') });
     }
   };
 
@@ -110,7 +112,7 @@ export function SettingsPage({ profile, onSaveProfile, onDataImported, createId,
     } catch (error) {
       setBackupFeedback({
         tone: 'error',
-        message: error instanceof BackupFormatError ? error.message : 'Could not restore the backup. Please try again.',
+        message: describeError(error, 'restore a backup', 'Could not restore the backup. Please try again.'),
       });
     } finally {
       setIsImporting(false);
@@ -269,6 +271,8 @@ export function SettingsPage({ profile, onSaveProfile, onDataImported, createId,
         </div>
       </form>
 
+      <AppearanceSection />
+
       <section className="card">
         <h2>Backup</h2>
         <p>
@@ -318,7 +322,7 @@ function DeleteAccountSection() {
       await deleteMyAccount();
       // Signing out returns the app to the sign-in page.
     } catch (deleteError) {
-      setError(deleteError instanceof Error ? deleteError.message : 'Could not delete your account. Please try again.');
+      setError(describeError(deleteError, 'delete the account', 'Could not delete your account. Please try again.'));
       setIsDeleting(false);
     }
   };
@@ -341,5 +345,38 @@ function DeleteAccountSection() {
         </button>
       </div>
     </section>
+  );
+}
+
+const THEME_OPTIONS: { value: ThemePreference; label: string; hint: string }[] = [
+  { value: 'system', label: 'Same as my device', hint: 'Follows your phone or computer setting' },
+  { value: 'light', label: 'Light', hint: 'Dark text on a light background' },
+  { value: 'dark', label: 'Dark', hint: 'Light text on a dark background' },
+];
+
+/** Light/dark choice. Saved in this browser only; printed documents are always light. */
+function AppearanceSection() {
+  const { preference } = useTheme();
+  return (
+    <fieldset className="card">
+      <legend>Appearance</legend>
+      <div className="choice-list">
+        {THEME_OPTIONS.map((option) => (
+          <label key={option.value} className="choice-option">
+            <input
+              type="radio"
+              name="theme"
+              value={option.value}
+              checked={preference === option.value}
+              onChange={() => setThemePreference(option.value)}
+            />
+            <span>
+              <span className="choice-option-label">{option.label}</span>
+              <span className="field-hint">{option.hint}</span>
+            </span>
+          </label>
+        ))}
+      </div>
+    </fieldset>
   );
 }

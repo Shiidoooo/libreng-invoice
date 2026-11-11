@@ -1,8 +1,10 @@
 import { useState, type FormEvent } from 'react';
+import { AboutContent } from '../about/AboutContent';
+import { describeError } from '../errors/reportError';
 import { FormField } from '../ui/FormField';
 import { GoogleMark } from '../ui/icons';
+import { Modal } from '../ui/Modal';
 import {
-  AuthFlowError,
   EMAIL_MAX_LENGTH,
   PASSWORD_MAX_LENGTH,
   PASSWORD_MIN_LENGTH,
@@ -36,6 +38,7 @@ export function SignInPage() {
     return urlError ? { tone: 'error', message: `Sign-in failed: ${urlError}` } : null;
   });
   const [isBusy, setIsBusy] = useState(false);
+  const [isAboutOpen, setIsAboutOpen] = useState(false);
 
   const switchMode = (next: Mode) => {
     setMode(next);
@@ -86,7 +89,7 @@ export function SignInPage() {
         message: `If an account exists for ${email.trim()}, a reset link is on its way. Check your inbox and spam folder.`,
       });
     } catch (error) {
-      setFeedback({ tone: 'error', message: error instanceof AuthFlowError ? error.message : 'Something went wrong. Please try again.' });
+      setFeedback({ tone: 'error', message: describeError(error, `${mode.replace('_', ' ')} with email`) });
     } finally {
       setIsBusy(false);
     }
@@ -98,7 +101,7 @@ export function SignInPage() {
     try {
       await signInWithGoogle();
     } catch (error) {
-      setFeedback({ tone: 'error', message: error instanceof AuthFlowError ? error.message : 'Could not start Google sign-in.' });
+      setFeedback({ tone: 'error', message: describeError(error, 'start Google sign-in', 'Could not start Google sign-in.') });
       setIsBusy(false);
     }
   };
@@ -207,6 +210,12 @@ export function SignInPage() {
           )}
         </div>
       </section>
+      <button type="button" className="link-button sign-in-about-link" onClick={() => setIsAboutOpen(true)}>
+        What is Libreng Invoice?
+      </button>
+      <Modal isOpen={isAboutOpen} title="About Libreng Invoice" size="large" onClose={() => setIsAboutOpen(false)}>
+        <AboutContent />
+      </Modal>
     </main>
   );
 }
