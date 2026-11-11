@@ -12,6 +12,9 @@ their documents are saved privately to their account (Supabase).
 - **Totals:** discount (percent or fixed), an extra fee (delivery, rush), down payment and balance due
 - **Business profile:** logo, address, optional TIN, payment options (GCash, Maya, banks)
 - **PDF** through the browser's print dialog, with a PAID stamp on fully paid invoices
+- **Email** a document from the seller's own Gmail or email app, with a message template they can edit in My
+  business (`{customer}`, `{total}`, `{due}`…). The app never sends email itself, so messages come from the seller's
+  real address and the app cannot be used to send spam
 - **My documents:** search, filter by type and payment, amount still to collect, mark as paid, copy, delete
 - **Backup and restore** as JSON; **delete account** erases everything
 - Light, dark or device theme; works on phones (bottom navigation, sticky save bar)
@@ -23,7 +26,8 @@ official receipts.
 
 Requires Node 24+ and a Supabase project.
 
-1. **Database.** In Supabase → SQL Editor, run each file in `supabase/migrations/` in order (`0001`, then `0002`).
+1. **Database.** In Supabase → SQL Editor, run each file in `supabase/migrations/` in order (`0001`, `0002`, then `0003`).
+   Run new migrations **before** deploying the code that needs them.
    Every script is safe to re-run.
 2. **Error log cleanup.** Enable `pg_cron` (Database → Extensions), then run once:
    `select cron.schedule('purge-error-logs', '17 3 * * *', 'select public.purge_old_error_logs()');`

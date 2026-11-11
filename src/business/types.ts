@@ -21,6 +21,9 @@ export interface BusinessProfile {
   paymentMethods: PaymentMethod[];
   defaultCurrency: CurrencyCode;
   defaultNotes: string;
+  /** Email template for sending documents; blank means the built-in one. */
+  emailSubject: string;
+  emailMessage: string;
 }
 
 export const EMPTY_PROFILE: BusinessProfile = {
@@ -33,4 +36,6 @@ export const EMPTY_PROFILE: BusinessProfile = {
   paymentMethods: [],
   defaultCurrency: 'PHP',
   defaultNotes: 'Thank you for your business!',
+  emailSubject: '',
+  emailMessage: '',
 };

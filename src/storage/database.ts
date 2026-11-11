@@ -21,7 +21,7 @@ const UNIQUE_VIOLATION = '23505';
 const DOCUMENT_COLUMNS =
   'id, kind, number, issue_date, due_date, customer, items, discount, other_charge, amount_paid_centavos, currency, notes, show_not_official_receipt_notice, created_at, updated_at';
 const PROFILE_COLUMNS =
-  'name, address, phone, email, tin, logo_data_url, payment_methods, default_currency, default_notes';
+  'name, address, phone, email, tin, logo_data_url, payment_methods, default_currency, default_notes, email_subject, email_message';
 
 /** A database failure with a customer-safe message; the raw error is kept as `cause` for developers. */
 export class StorageError extends AppError {}
@@ -67,6 +67,8 @@ interface ProfileRow {
   payment_methods: unknown;
   default_currency: string;
   default_notes: string;
+  email_subject: string;
+  email_message: string;
 }
 
 /**
@@ -177,6 +179,8 @@ function rowToProfile(row: ProfileRow): BusinessProfile {
     paymentMethods: row.payment_methods,
     defaultCurrency: row.default_currency,
     defaultNotes: row.default_notes,
+    emailSubject: row.email_subject,
+    emailMessage: row.email_message,
   });
 }
 
@@ -306,6 +310,8 @@ export async function saveProfile(profile: BusinessProfile): Promise<void> {
     payment_methods: profile.paymentMethods,
     default_currency: profile.defaultCurrency,
     default_notes: profile.defaultNotes,
+    email_subject: profile.emailSubject,
+    email_message: profile.emailMessage,
   };
   const { error } = await requireSupabase().from('business_profiles').upsert(row, { onConflict: 'user_id' });
   if (error) throw toStorageError(error, 'save your business details');

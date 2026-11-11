@@ -87,3 +87,10 @@ export const IconInfo = () => (
     <path d="M12 16v-4M12 8h.01" />
   </Icon>
 );
+
+export const IconMail = () => (
+  <Icon>
+    <rect x="3" y="5" width="18" height="14" rx="2" />
+    <path d="m3 7 9 6 9-6" />
+  </Icon>
+);

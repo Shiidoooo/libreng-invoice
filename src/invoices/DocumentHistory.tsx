@@ -28,12 +28,14 @@ interface DocumentHistoryProps {
   documents: BusinessDocument[];
   onOpen: (doc: BusinessDocument) => void | Promise<void>;
   onDuplicate: (doc: BusinessDocument) => void | Promise<void>;
+  /** Opens the document with the email window on top. */
+  onEmail: (doc: BusinessDocument) => void | Promise<void>;
   onMarkPaid: (doc: BusinessDocument) => Promise<void>;
   onDelete: (doc: BusinessDocument) => Promise<void>;
   onCreate: () => void;
 }
 
-export function DocumentHistory({ documents, onOpen, onDuplicate, onMarkPaid, onDelete, onCreate }: DocumentHistoryProps) {
+export function DocumentHistory({ documents, onOpen, onDuplicate, onEmail, onMarkPaid, onDelete, onCreate }: DocumentHistoryProps) {
   const [search, setSearch] = useState('');
   const [kindFilter, setKindFilter] = useState<DocumentKind | 'all'>('all');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
@@ -203,6 +205,9 @@ export function DocumentHistory({ documents, onOpen, onDuplicate, onMarkPaid, on
                       <span className="visually-hidden"> {doc.number}</span>
                     </button>
                   )}
+                  <button type="button" className="button-quiet" onClick={() => void onEmail(doc)}>
+                    Email<span className="visually-hidden"> {doc.number}</span>
+                  </button>
                   <button type="button" className="button-quiet" onClick={() => void onDuplicate(doc)}>
                     Make a copy<span className="visually-hidden"> of {doc.number}</span>
                   </button>

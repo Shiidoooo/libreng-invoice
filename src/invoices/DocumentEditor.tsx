@@ -5,7 +5,7 @@ import { CURRENCIES, centavosToPlainText, formatMoney, formatQuantity, getCurren
 import { describeError } from '../errors/reportError';
 import { AffixInput } from '../ui/AffixInput';
 import { FormField } from '../ui/FormField';
-import { IconPlus, IconTrash } from '../ui/icons';
+import { IconMail, IconPlus, IconTrash } from '../ui/icons';
 import { DOCUMENT_KIND_CONFIG } from './documentKinds';
 import { DocumentPreview } from './DocumentPreview';
 import {
@@ -19,6 +19,7 @@ import {
 } from './draft';
 import { isAutomaticNumber, suggestNextNumber, type NumberCounters } from './numbering';
 import { printDocument } from './printDocument';
+import { SendEmailModal } from './SendEmailModal';
 import { computeTotals } from './totals';
 import { priceUnitOptions, toMeasureUnitCode } from './units';
 import { DOCUMENT_KINDS, type BusinessDocument, type Discount, type DocumentKind, type Party } from './types';
@@ -36,7 +37,12 @@ interface DocumentEditorProps {
   onSave: (document: BusinessDocument) => Promise<void>;
   createId: () => string;
   now: () => Date;
+  /** Open the email window as soon as the editor shows ("Email" pressed in My documents). */
+  isEmailRequested?: boolean;
+  onEmailClosed?: () => void;
 }
+
+type AfterSave = 'nothing' | 'print' | 'email';
 
 type PaneOnMobile = 'form' | 'preview';
 
@@ -53,6 +59,8 @@ export function DocumentEditor({
   onSave,
   createId,
   now,
+  isEmailRequested = false,
+  onEmailClosed,
 }: DocumentEditorProps) {
   const [hasTriedSave, setHasTriedSave] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -60,6 +68,10 @@ export function DocumentEditor({
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [paneOnMobile, setPaneOnMobile] = useState<PaneOnMobile>('form');
   const [isExtrasOpen, setIsExtrasOpen] = useState(() => hasExtras(draft));
+  const [emailDocument, setEmailDocument] = useState<BusinessDocument | null>(() =>
+    // Saved documents opened from My documents are always valid, so this is the saved version.
+    isEmailRequested ? convertDraft(draft, now().toISOString()).document : null,
+  );
 
   const config = DOCUMENT_KIND_CONFIG[draft.kind];
   const conversion = useMemo(() => convertDraft(draft, now().toISOString()), [draft, now]);
@@ -99,7 +111,7 @@ export function DocumentEditor({
     }
   };
 
-  const handleSave = async ({ shouldPrint }: { shouldPrint: boolean }) => {
+  const handleSave = async (afterSave: AfterSave) => {
     setHasTriedSave(true);
     setSaveError(null);
     setSaveMessage(null);
@@ -113,8 +125,11 @@ export function DocumentEditor({
     setIsSaving(true);
     try {
       await onSave(conversion.document);
-      setSaveMessage(shouldPrint ? 'Saved. Choose “Save as PDF” in the print window.' : `Saved ${conversion.document.number}.`);
-      if (shouldPrint) printDocument(conversion.document.number);
+      setSaveMessage(
+        afterSave === 'print' ? 'Saved. Choose “Save as PDF” in the print window.' : `Saved ${conversion.document.number}.`,
+      );
+      if (afterSave === 'print') printDocument(conversion.document.number);
+      if (afterSave === 'email') setEmailDocument(conversion.document);
     } catch (error) {
       setSaveError(describeError(error, `save ${conversion.document.number}`, 'Could not save. Please try again.'));
     } finally {
@@ -138,7 +153,7 @@ export function DocumentEditor({
         noValidate
         onSubmit={(event) => {
           event.preventDefault();
-          void handleSave({ shouldPrint: false });
+          void handleSave('nothing');
         }}
       >
         <fieldset className="card">
@@ -501,6 +516,16 @@ export function DocumentEditor({
             <strong className="action-bar-amount">{money(showsBalance ? totals.balanceDue : totals.total)}</strong>
           </div>
           <div className="action-bar-buttons">
+            <button
+              type="button"
+              className="button-secondary action-bar-email"
+              disabled={isSaving}
+              aria-label="Save and email"
+              onClick={() => void handleSave('email')}
+            >
+              <IconMail />
+              <span className="action-bar-email-text">Email</span>
+            </button>
             <button type="submit" className="button-secondary" disabled={isSaving}>
               {isSaving ? 'Saving…' : 'Save'}
             </button>
@@ -508,7 +533,7 @@ export function DocumentEditor({
               type="button"
               className="button-primary"
               disabled={isSaving}
-              onClick={() => void handleSave({ shouldPrint: true })}
+              onClick={() => void handleSave('print')}
             >
               Save &amp; get PDF
             </button>
@@ -523,6 +548,11 @@ export function DocumentEditor({
       <div className="editor-preview">
         <DocumentPreview document={conversion.document} profile={profile} />
       </div>
+      <SendEmailModal document={emailDocument} profile={profile} onClose={() => {
+          setEmailDocument(null);
+          onEmailClosed?.();
+        }}
+      />
     </div>
   );
 }

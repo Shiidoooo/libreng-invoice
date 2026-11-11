@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { EMPTY_PROFILE } from '../business/types';
 import { convertDraft, createNewDraft } from '../invoices/draft';
-import { BACKUP_APP_ID, BACKUP_VERSION, BackupFormatError, parseBackup, type Backup } from './backupFormat';
+import { BACKUP_APP_ID, BACKUP_VERSION, BackupFormatError, parseBackup, parseProfile, type Backup } from './backupFormat';
 
 function validBackup(): Backup {
   let id = 0;
@@ -83,5 +83,16 @@ describe('parseBackup typed amounts', () => {
     const backup = validBackup();
     backup.documents[0].items[0] = { ...backup.documents[0].items[0], enteredAmountCentavos: -1 };
     expect(() => parseBackup(JSON.stringify(backup))).toThrow(/enteredAmountCentavos/);
+  });
+});
+
+describe('parseProfile email template', () => {
+  it('accepts profiles saved before the email template existed', () => {
+    const { emailSubject: _subject, emailMessage: _message, ...olderProfile } = EMPTY_PROFILE;
+    expect(parseProfile(olderProfile)).toMatchObject({ emailSubject: '', emailMessage: '' });
+  });
+
+  it('rejects a message over the limit', () => {
+    expect(() => parseProfile({ ...EMPTY_PROFILE, emailMessage: 'x'.repeat(2001) })).toThrow(BackupFormatError);
   });
 });

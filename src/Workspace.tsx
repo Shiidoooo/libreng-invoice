@@ -57,6 +57,8 @@ export function Workspace({ userId, userEmail, onSignOut }: WorkspaceProps) {
   /** True once the user edits the draft; cleared when it is saved or replaced. */
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [isDraftRestored, setIsDraftRestored] = useState(false);
+  /** A document opened from My documents with "Email": the editor opens the email window for it. */
+  const [emailRequestId, setEmailRequestId] = useState<string | null>(null);
   const { confirm, confirmDialog } = useConfirm();
   const { resolved: resolvedTheme } = useTheme();
 
@@ -187,6 +189,20 @@ export function Workspace({ userId, userEmail, onSignOut }: WorkspaceProps) {
 
   const replaceDocument = (saved: BusinessDocument) =>
     updateData((current) => ({ documents: [...current.documents.filter((other) => other.id !== saved.id), saved] }));
+
+  /**
+   * Opens a saved document. Opening the one already in the editor keeps its edits, except
+   * for email, which must describe the saved version.
+   */
+  const openSavedDocument = async (doc: BusinessDocument, { shouldEmail }: { shouldEmail: boolean }) => {
+    const isAlreadyOpen = draft.id === doc.id && !(shouldEmail && hasUnsavedChanges);
+    if (!isAlreadyOpen) {
+      if (!(await confirmDiscardChanges())) return;
+      replaceDraft(draftFromDocument(doc));
+    }
+    setEmailRequestId(shouldEmail ? doc.id : null);
+    setView('editor');
+  };
 
   const startNewDocument = async (kind: DocumentKind = draft.kind) => {
     if (!(await confirmDiscardChanges())) return;
@@ -358,6 +374,8 @@ export function Workspace({ userId, userEmail, onSignOut }: WorkspaceProps) {
                 setHasUnsavedChanges(true);
               }}
               onSave={handleSaveFromEditor}
+              isEmailRequested={emailRequestId === draft.id}
+              onEmailClosed={() => setEmailRequestId(null)}
               createId={createId}
               now={now}
             />
@@ -366,13 +384,8 @@ export function Workspace({ userId, userEmail, onSignOut }: WorkspaceProps) {
         {view === 'history' && (
           <DocumentHistory
             documents={data.documents}
-            onOpen={async (doc) => {
-              if (draft.id !== doc.id) {
-                if (!(await confirmDiscardChanges())) return;
-                replaceDraft(draftFromDocument(doc));
-              }
-              setView('editor');
-            }}
+            onOpen={(doc) => openSavedDocument(doc, { shouldEmail: false })}
+            onEmail={(doc) => openSavedDocument(doc, { shouldEmail: true })}
             onDuplicate={async (doc) => {
               if (!(await confirmDiscardChanges())) return;
               replaceDraft(duplicateAsDraft(doc, { today: today(), counters: data.counters, createId }));

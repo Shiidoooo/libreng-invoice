@@ -3,6 +3,15 @@ import { describeError } from '../errors/reportError';
 import { useState, type ChangeEvent } from 'react';
 import { CURRENCIES, type CurrencyCode } from '../money/money';
 import { TEXT_LIMITS } from '../invoices/draft';
+import {
+  DEFAULT_EMAIL_MESSAGE,
+  DEFAULT_EMAIL_SUBJECT,
+  EMAIL_MESSAGE_MAX_LENGTH,
+  EMAIL_PLACEHOLDERS,
+  EMAIL_SUBJECT_MAX_LENGTH,
+  resolveEmailTemplate,
+  toStoredEmailTemplate,
+} from '../invoices/emailMessage';
 import { BackupFormatError, MAX_BACKUP_FILE_BYTES, parseBackup, parseProfile } from '../storage/backupFormat';
 import { createBackup, deleteMyAccount, importBackup } from '../storage/database';
 import { FormField } from '../ui/FormField';
@@ -23,7 +32,8 @@ interface SettingsPageProps {
 type Feedback = { tone: 'success' | 'error'; message: string } | null;
 
 export function SettingsPage({ profile, onSaveProfile, onDataImported, createId, now }: SettingsPageProps) {
-  const [form, setForm] = useState<BusinessProfile>(profile);
+  // The template fields show the built-in text when the seller has not changed it.
+  const [form, setForm] = useState<BusinessProfile>(() => withEmailTemplateShown(profile));
   const [isSaving, setIsSaving] = useState(false);
   const [profileFeedback, setProfileFeedback] = useState<Feedback>(null);
   const [backupFeedback, setBackupFeedback] = useState<Feedback>(null);
@@ -59,8 +69,9 @@ export function SettingsPage({ profile, onSaveProfile, onDataImported, createId,
         ...form,
         paymentMethods: form.paymentMethods.filter((method) => method.label.trim() || method.details.trim()),
       };
-      await onSaveProfile(parseProfile(trimmed));
-      setForm(trimmed);
+      const stored = toStoredEmailTemplate({ subject: trimmed.emailSubject, message: trimmed.emailMessage });
+      await onSaveProfile(parseProfile({ ...trimmed, emailSubject: stored.subject, emailMessage: stored.message }));
+      setForm(withEmailTemplateShown(trimmed));
       setProfileFeedback({ tone: 'success', message: 'Business details saved.' });
     } catch (error) {
       const message =
@@ -261,6 +272,57 @@ export function SettingsPage({ profile, onSaveProfile, onDataImported, createId,
           )}
         </FormField>
 
+        <fieldset className="email-template">
+          <legend>Email message</legend>
+          <p className="field-hint">
+            Used when you press <strong>Email</strong> on a document. It opens in your own Gmail or email app, so it is
+            sent from your address. Words in {"{curly brackets}"} are filled in for you; a line is left out when its
+            value is empty.
+          </p>
+          <FormField label="Subject">
+            {(control) => (
+              <input
+                {...control}
+                maxLength={EMAIL_SUBJECT_MAX_LENGTH}
+                value={form.emailSubject}
+                onChange={(e) => update({ emailSubject: e.target.value })}
+              />
+            )}
+          </FormField>
+          <FormField label="Message">
+            {(control) => (
+              <textarea
+                {...control}
+                rows={12}
+                maxLength={EMAIL_MESSAGE_MAX_LENGTH}
+                value={form.emailMessage}
+                onChange={(e) => update({ emailMessage: e.target.value })}
+              />
+            )}
+          </FormField>
+          <details className="email-placeholders">
+            <summary>What you can use in curly brackets</summary>
+            <dl>
+              {EMAIL_PLACEHOLDERS.map((placeholder) => (
+                <div key={placeholder.key}>
+                  <dt>
+                    <code>{`{${placeholder.key}}`}</code>
+                  </dt>
+                  <dd>{placeholder.meaning}</dd>
+                </div>
+              ))}
+            </dl>
+          </details>
+          <button
+            type="button"
+            className="button-quiet"
+            disabled={form.emailSubject === DEFAULT_EMAIL_SUBJECT && form.emailMessage === DEFAULT_EMAIL_MESSAGE}
+            onClick={() => update({ emailSubject: DEFAULT_EMAIL_SUBJECT, emailMessage: DEFAULT_EMAIL_MESSAGE })}
+          >
+            Use the original message
+          </button>
+        </fieldset>
+
         <div className="editor-actions">
           <div role="status" aria-live="polite" className="editor-status">
             {profileFeedback && <p className={`banner banner-${profileFeedback.tone}`}>{profileFeedback.message}</p>}
@@ -379,4 +441,9 @@ function AppearanceSection() {
       </div>
     </fieldset>
   );
+}
+
+function withEmailTemplateShown(profile: BusinessProfile): BusinessProfile {
+  const template = resolveEmailTemplate(profile);
+  return { ...profile, emailSubject: template.subject, emailMessage: template.message };
 }

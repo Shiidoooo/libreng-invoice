@@ -3,6 +3,7 @@ import { MAX_LOGO_DATA_URL_LENGTH, isAllowedLogoDataUrl } from '../business/logo
 import type { BusinessProfile, PaymentMethod } from '../business/types';
 import { isValidDateString } from '../dates/dates';
 import { MAX_DOCUMENT_AMOUNT_CENTAVOS, MAX_LINE_AMOUNT_CENTAVOS, MAX_LINE_ITEMS, TEXT_LIMITS } from '../invoices/draft';
+import { EMAIL_MESSAGE_MAX_LENGTH, EMAIL_SUBJECT_MAX_LENGTH } from '../invoices/emailMessage';
 import { computeLineAmount } from '../invoices/totals';
 import { conversionRatio } from '../invoices/units';
 import type { NumberCounters } from '../invoices/numbering';
@@ -199,6 +200,9 @@ export function parseProfile(value: unknown, path = 'profile'): BusinessProfile 
     ),
     defaultCurrency: asOneOf(profile.defaultCurrency, `${path}.defaultCurrency`, CURRENCIES),
     defaultNotes: asString(profile.defaultNotes, `${path}.defaultNotes`, TEXT_LIMITS.notes),
+    // Added later: older backups and rows without them get the built-in template.
+    emailSubject: profile.emailSubject === undefined ? '' : asString(profile.emailSubject, `${path}.emailSubject`, EMAIL_SUBJECT_MAX_LENGTH),
+    emailMessage: profile.emailMessage === undefined ? '' : asString(profile.emailMessage, `${path}.emailMessage`, EMAIL_MESSAGE_MAX_LENGTH),
   };
 }
 
