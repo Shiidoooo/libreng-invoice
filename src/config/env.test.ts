@@ -30,3 +30,16 @@ describe('readConfig', () => {
     expect(!result.isValid && result.problems.join(' ')).toMatch(/SECRET key/);
   });
 });
+
+describe('readConfig legacy JWT keys', () => {
+  const jwt = (payload: object) => `eyJhbGciOiJIUzI1NiJ9.${btoa(JSON.stringify(payload)).replace(/=+$/, '')}.c2lnbmF0dXJl`;
+
+  it('accepts a legacy anon key', () => {
+    expect(readConfig({ ...VALID, VITE_SUPABASE_PUBLISHABLE_KEY: jwt({ role: 'anon' }) }).isValid).toBe(true);
+  });
+
+  it('refuses a legacy service_role key', () => {
+    const result = readConfig({ ...VALID, VITE_SUPABASE_PUBLISHABLE_KEY: jwt({ role: 'service_role' }) });
+    expect(!result.isValid && result.problems.join(' ')).toMatch(/SECRET key/);
+  });
+});

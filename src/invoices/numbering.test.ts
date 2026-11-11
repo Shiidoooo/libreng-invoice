@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { advanceCounters, suggestNextNumber } from './numbering';
+import { advanceCounters, isAutomaticNumber, suggestNextNumber } from './numbering';
 
 describe('suggestNextNumber', () => {
   it('starts each kind and year at 0001', () => {
@@ -30,5 +30,17 @@ describe('advanceCounters', () => {
     const counters = { 'invoice:2026': 2 };
     expect(advanceCounters(counters, 'invoice', 'JOB-17')).toBe(counters);
     expect(advanceCounters(counters, 'invoice', 'QUO-2026-0050')).toBe(counters);
+  });
+});
+
+describe('isAutomaticNumber', () => {
+  it('recognises numbers in the automatic format for that type', () => {
+    expect(isAutomaticNumber('invoice', 'INV-2026-0007')).toBe(true);
+    expect(isAutomaticNumber('invoice', 'INV-2025-12345')).toBe(true);
+  });
+
+  it('rejects typed numbers and other types', () => {
+    expect(isAutomaticNumber('invoice', 'JOB-17')).toBe(false);
+    expect(isAutomaticNumber('quotation', 'INV-2026-0007')).toBe(false);
   });
 });

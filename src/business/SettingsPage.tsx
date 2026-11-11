@@ -102,7 +102,7 @@ export function SettingsPage({ profile, onSaveProfile, onDataImported, createId,
     setIsImporting(true);
     try {
       const backup = parseBackup(await file.text());
-      const summary = await importBackup(backup);
+      const summary = await importBackup(backup, createId);
       await onDataImported();
       if (summary.isProfileImported) setForm(backup.profile);
       const parts = [`${summary.added} added`, `${summary.updated} updated`];

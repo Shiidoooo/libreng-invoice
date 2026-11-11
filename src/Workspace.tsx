@@ -3,19 +3,33 @@ import { AboutContent } from './about/AboutContent';
 import { SettingsPage } from './business/SettingsPage';
 import type { BusinessProfile } from './business/types';
 import { toLocalDateString } from './dates/dates';
+import { AppError } from './errors/appError';
 import { describeError } from './errors/reportError';
 import { DOCUMENT_KIND_CONFIG } from './invoices/documentKinds';
 import { DocumentEditor } from './invoices/DocumentEditor';
 import { DocumentHistory } from './invoices/DocumentHistory';
 import { createNewDraft, draftFromDocument, duplicateAsDraft, type DocumentDraft } from './invoices/draft';
+import { clearUnsavedDraft, storeUnsavedDraft, takeUnsavedDraft } from './invoices/draftStorage';
+import { isAutomaticNumber, suggestNextNumber } from './invoices/numbering';
 import { computeTotals } from './invoices/totals';
 import type { BusinessDocument, DocumentKind, Party } from './invoices/types';
-import { deleteDocument, loadAppData, saveDocument, saveProfile, type AppData } from './storage/database';
+import { centavosToPlainText } from './money/money';
+import {
+  DuplicateNumberError,
+  deleteDocument,
+  loadAppData,
+  loadCounters,
+  markDocumentPaid,
+  saveDocument,
+  saveProfile,
+  type AppData,
+} from './storage/database';
 import { setThemePreference, useTheme } from './theme/theme';
 import { IconCreate, IconDocuments, IconInfo, IconMoon, IconPlus, IconSettings, IconSignOut, IconSun } from './ui/icons';
 import { useConfirm } from './ui/useConfirm';
 
 interface WorkspaceProps {
+  userId: string;
   userEmail: string;
   onSignOut: () => void;
 }
@@ -36,22 +50,33 @@ const now = () => new Date();
 const today = () => toLocalDateString(now());
 
 /** Everything a signed-in user sees. Remounted per user, so no state leaks between accounts. */
-export function Workspace({ userEmail, onSignOut }: WorkspaceProps) {
+export function Workspace({ userId, userEmail, onSignOut }: WorkspaceProps) {
   const [loadState, setLoadState] = useState<LoadState>({ status: 'loading' });
   const [view, setView] = useState<View>('editor');
   const [draft, setDraft] = useState<DocumentDraft | null>(null);
   /** True once the user edits the draft; cleared when it is saved or replaced. */
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [isDraftRestored, setIsDraftRestored] = useState(false);
   const { confirm, confirmDialog } = useConfirm();
   const { resolved: resolvedTheme } = useTheme();
 
-  const applyLoadedData = useCallback((data: AppData) => {
-    setLoadState({ status: 'ready', data });
-    setDraft(
-      (current) =>
-        current ?? createNewDraft({ kind: 'invoice', today: today(), counters: data.counters, profile: data.profile, createId }),
-    );
-  }, []);
+  const applyLoadedData = useCallback(
+    (data: AppData) => {
+      setLoadState({ status: 'ready', data });
+      setDraft((current) => {
+        if (current) return current;
+        // Unsaved work from before the session ended in this tab.
+        const restored = takeUnsavedDraft(userId);
+        if (restored) {
+          setHasUnsavedChanges(true);
+          setIsDraftRestored(true);
+          return restored;
+        }
+        return createNewDraft({ kind: 'invoice', today: today(), counters: data.counters, profile: data.profile, createId });
+      });
+    },
+    [userId],
+  );
 
   const applyLoadError = useCallback((error: unknown) => {
     setLoadState({ status: 'error', message: describeError(error, 'load your documents', 'Could not load your documents.') });
@@ -85,6 +110,12 @@ export function Workspace({ userEmail, onSignOut }: WorkspaceProps) {
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [hasUnsavedChanges]);
+
+  // Keep a copy of unsaved work in this tab, so it survives the session ending.
+  useEffect(() => {
+    if (hasUnsavedChanges && draft) storeUnsavedDraft(userId, draft);
+    else clearUnsavedDraft(userId);
+  }, [hasUnsavedChanges, draft, userId]);
 
   const data = loadState.status === 'ready' ? loadState.data : null;
 
@@ -125,7 +156,12 @@ export function Workspace({ userEmail, onSignOut }: WorkspaceProps) {
     );
   }
 
-  const updateData = (changes: Partial<AppData>) => setLoadState({ status: 'ready', data: { ...data, ...changes } });
+  /**
+   * Applies a change to the latest data, not the data captured when a button was
+   * clicked, so overlapping actions (delete one row, mark another paid) don't undo each other.
+   */
+  const updateData = (change: (current: AppData) => Partial<AppData>) =>
+    setLoadState((state) => (state.status === 'ready' ? { status: 'ready', data: { ...state.data, ...change(state.data) } } : state));
 
   /** Asks before throwing away unsaved edits. Resolves true when it is fine to continue. */
   const confirmDiscardChanges = async () =>
@@ -146,14 +182,11 @@ export function Workspace({ userEmail, onSignOut }: WorkspaceProps) {
   const replaceDraft = (next: DocumentDraft) => {
     setDraft(next);
     setHasUnsavedChanges(false);
+    setIsDraftRestored(false);
   };
 
-  const persistDocument = async (doc: BusinessDocument) => {
-    const { document: saved, counters } = await saveDocument(doc);
-    const documents = [...data.documents.filter((other) => other.id !== saved.id), saved];
-    updateData({ documents, counters });
-    return saved;
-  };
+  const replaceDocument = (saved: BusinessDocument) =>
+    updateData((current) => ({ documents: [...current.documents.filter((other) => other.id !== saved.id), saved] }));
 
   const startNewDocument = async (kind: DocumentKind = draft.kind) => {
     if (!(await confirmDiscardChanges())) return;
@@ -168,18 +201,43 @@ export function Workspace({ userEmail, onSignOut }: WorkspaceProps) {
   };
 
   const handleSaveFromEditor = async (doc: BusinessDocument) => {
-    replaceDraft(draftFromDocument(await persistDocument(doc)));
+    try {
+      const { document: saved, counters } = await saveDocument(doc, { isNew: draft.isNew });
+      replaceDocument(saved);
+      updateData(() => ({ counters }));
+      replaceDraft(draftFromDocument(saved));
+      setIsDraftRestored(false);
+    } catch (error) {
+      if (error instanceof DuplicateNumberError && draft.isNew) {
+        // Usually the suggested number was just used on another device: refresh the series.
+        const counters = await loadCounters();
+        updateData(() => ({ counters }));
+        if (isAutomaticNumber(draft.kind, draft.number)) {
+          const nextNumber = suggestNextNumber(counters, draft.kind, Number(draft.issueDate.slice(0, 4)));
+          setDraft((current) => (current && current.id === doc.id ? { ...current, number: nextNumber } : current));
+          throw new AppError(
+            'conflict',
+            `${doc.number} was already used, maybe on another device. The number is now ${nextNumber}. Press Save again.`,
+            { cause: error },
+          );
+        }
+      }
+      throw error;
+    }
   };
 
   const handleMarkPaid = async (doc: BusinessDocument) => {
-    const paidDoc = { ...doc, amountPaidCentavos: computeTotals(doc).total, updatedAt: now().toISOString() };
-    const saved = await persistDocument(paidDoc);
-    if (draft.id === doc.id && !hasUnsavedChanges) replaceDraft(draftFromDocument(saved));
+    const saved = await markDocumentPaid(doc, computeTotals(doc).total);
+    replaceDocument(saved);
+    // Keep the open editor in step, so a later Save cannot undo the payment.
+    setDraft((current) =>
+      current && current.id === saved.id ? { ...current, amountPaidText: centavosToPlainText(saved.amountPaidCentavos) } : current,
+    );
   };
 
   const handleDelete = async (doc: BusinessDocument) => {
     await deleteDocument(doc);
-    updateData({ documents: data.documents.filter((other) => other.id !== doc.id) });
+    updateData((current) => ({ documents: current.documents.filter((other) => other.id !== doc.id) }));
     if (draft.id === doc.id) {
       replaceDraft(createNewDraft({ kind: doc.kind, today: today(), counters: data.counters, profile: data.profile, createId }));
     }
@@ -187,11 +245,13 @@ export function Workspace({ userEmail, onSignOut }: WorkspaceProps) {
 
   const handleSaveProfile = async (profile: BusinessProfile) => {
     await saveProfile(profile);
-    updateData({ profile });
+    updateData(() => ({ profile }));
   };
 
   const handleSignOut = async () => {
-    if (await confirmDiscardChanges()) onSignOut();
+    if (!(await confirmDiscardChanges())) return;
+    clearUnsavedDraft(userId);
+    onSignOut();
   };
 
   const isProfileMissing = data.profile.name.trim() === '';
@@ -252,6 +312,18 @@ export function Workspace({ userEmail, onSignOut }: WorkspaceProps) {
           <p className="banner banner-error" role="alert">
             {data.skippedDocumentCount} saved document(s) could not be read and are hidden. Your other documents are fine.
           </p>
+        )}
+
+        {isDraftRestored && view === 'editor' && (
+          <div className="banner banner-info setup-banner">
+            <p>
+              <strong>We kept your unsaved work.</strong> Your session ended before you saved {draft.number}. Check it and
+              press Save.
+            </p>
+            <button type="button" className="button-quiet" onClick={() => setIsDraftRestored(false)}>
+              OK, got it
+            </button>
+          </div>
         )}
 
         {isProfileMissing && view !== 'settings' && view !== 'about' && (

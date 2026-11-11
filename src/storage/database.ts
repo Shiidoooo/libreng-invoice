@@ -70,6 +70,17 @@ interface ProfileRow {
 }
 
 /**
+ * Offline, timed out or blocked. postgrest-js reports these as plain objects with an
+ * empty code and the browser's own wording, which differs per browser.
+ */
+const NETWORK_FAILURE_PATTERN = /Failed to fetch|NetworkError|Load failed|TimeoutError|AbortError|signal timed out|aborted/i;
+
+function isNetworkFailure(error: { name?: string; message: string }, code: string): boolean {
+  if (error.name === 'AbortError' || error.name === 'TimeoutError') return true;
+  return code === '' && NETWORK_FAILURE_PATTERN.test(error.message);
+}
+
+/**
  * Classifies a Supabase error. The customer message never includes the raw database
  * text; reportError() logs that for developers from `cause`.
  */
@@ -98,7 +109,15 @@ export function toStorageError(error: PostgrestError | Error, action: string): S
   if (code === '42501') {
     return new StorageError('forbidden', `You do not have permission to ${action}.`, options);
   }
-  if (error.name === 'AbortError' || error.name === 'TimeoutError' || error.message.includes('Failed to fetch')) {
+  // A check constraint failed: a value is outside what the database accepts.
+  if (code === '23514') {
+    return new StorageError(
+      'validation',
+      `Could not ${action}: a number or text is too large. Check the amounts and try again.`,
+      options,
+    );
+  }
+  if (isNetworkFailure(error, code)) {
     return new StorageError('transient', `Could not ${action}. ${OFFLINE_MESSAGE}`, options);
   }
   return new StorageError('dependency', `Could not ${action}. Please try again.`, options);
@@ -216,25 +235,56 @@ export async function loadAppData(): Promise<AppData> {
   return { profile, counters, documents, skippedDocumentCount: skipped };
 }
 
+export async function loadCounters(): Promise<NumberCounters> {
+  return fetchCounters();
+}
+
 /**
- * Inserts or updates a document. The database advances the numbering counter
- * in the same transaction and rejects a number already used for the same type.
- * Returns the saved document (with the server's timestamps) and fresh counters.
+ * Saves a document: an insert for a new one, an update for an existing one.
+ * Updates never re-create a document that was deleted meanwhile (for example in
+ * another tab); they fail with not_found instead. The database advances the
+ * numbering counter in the same transaction and rejects a number already used for
+ * the same type. Returns the saved document (server timestamps) and fresh counters.
  */
-export async function saveDocument(doc: BusinessDocument): Promise<{ document: BusinessDocument; counters: NumberCounters }> {
+export async function saveDocument(
+  doc: BusinessDocument,
+  { isNew }: { isNew: boolean },
+): Promise<{ document: BusinessDocument; counters: NumberCounters }> {
+  const client = requireSupabase();
+  const row = documentToRow(doc);
+  const request = isNew
+    ? client.from('documents').insert(row)
+    : client.from('documents').update(row).eq('id', doc.id);
+  const { data, error } = await request.select(DOCUMENT_COLUMNS).maybeSingle<DocumentRow>();
+  if (error) throw toStorageError(error, `save ${doc.number}`);
+  if (!data) throw documentGoneError(doc);
+  return { document: rowToDocument(data), counters: await fetchCounters() };
+}
+
+/** Records full payment without touching any other field, so it cannot undo other edits. */
+export async function markDocumentPaid(doc: BusinessDocument, amountPaidCentavos: number): Promise<BusinessDocument> {
   const { data, error } = await requireSupabase()
     .from('documents')
-    .upsert(documentToRow(doc), { onConflict: 'id' })
+    .update({ amount_paid_centavos: amountPaidCentavos })
+    .eq('id', doc.id)
     .select(DOCUMENT_COLUMNS)
-    .single<DocumentRow>();
-  if (error) throw toStorageError(error, `save ${doc.number}`);
-  return { document: rowToDocument(data), counters: await fetchCounters() };
+    .maybeSingle<DocumentRow>();
+  if (error) throw toStorageError(error, `mark ${doc.number} as paid`);
+  if (!data) throw documentGoneError(doc);
+  return rowToDocument(data);
+}
+
+function documentGoneError(doc: BusinessDocument): StorageError {
+  return new StorageError(
+    'not_found',
+    `${doc.number} no longer exists. It may have been deleted on another device or tab. Refresh the page to see your current documents.`,
+  );
 }
 
 export async function deleteDocument(doc: BusinessDocument): Promise<void> {
   const { data, error } = await requireSupabase().from('documents').delete().eq('id', doc.id).select('id');
   if (error) throw toStorageError(error, `delete ${doc.number}`);
-  if (data.length === 0) throw new StorageError('not_found', `${doc.number} was not found. It may already be deleted; refresh the page.`);
+  if (data.length === 0) throw documentGoneError(doc);
 }
 
 async function currentUserId(): Promise<string> {
@@ -275,12 +325,14 @@ export interface ImportSummary {
 }
 
 /**
- * Merges a backup into the account without deleting anything: known ids are
- * updated, new ones added, number clashes skipped. The business profile is only
- * taken from the backup when none has been set up yet. Counters follow
- * automatically through the database trigger.
+ * Merges a backup into the account without deleting anything: documents already in
+ * this account are updated, others are added, and number clashes are skipped.
+ * Added documents get a fresh id, because ids are unique across all accounts and the
+ * same backup may already have been restored into a different account.
+ * The business profile is only taken from the backup when none has been set up yet.
+ * Counters follow automatically through the database trigger.
  */
-export async function importBackup(backup: Backup): Promise<ImportSummary> {
+export async function importBackup(backup: Backup, createId: () => string): Promise<ImportSummary> {
   const current = await loadAppData();
   const existingIds = new Set(current.documents.map((doc) => doc.id));
   const numberOwners = new Map(current.documents.map((doc) => [`${doc.kind}\u0000${doc.number}`, doc.id]));
@@ -288,15 +340,17 @@ export async function importBackup(backup: Backup): Promise<ImportSummary> {
   const summary: ImportSummary = { added: 0, updated: 0, skipped: 0, isProfileImported: false };
   const accepted: BusinessDocument[] = [];
   for (const doc of backup.documents) {
+    const isExisting = existingIds.has(doc.id);
     const numberKey = `${doc.kind}\u0000${doc.number}`;
     const owner = numberOwners.get(numberKey);
     if (owner !== undefined && owner !== doc.id) {
       summary.skipped += 1;
       continue;
     }
-    numberOwners.set(numberKey, doc.id);
-    accepted.push(doc);
-    if (existingIds.has(doc.id)) summary.updated += 1;
+    const imported = isExisting ? doc : { ...doc, id: createId() };
+    numberOwners.set(numberKey, imported.id);
+    accepted.push(imported);
+    if (isExisting) summary.updated += 1;
     else summary.added += 1;
   }
 

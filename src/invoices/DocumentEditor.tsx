@@ -17,7 +17,7 @@ import {
   type DocumentDraft,
   type LineItemDraft,
 } from './draft';
-import { suggestNextNumber, type NumberCounters } from './numbering';
+import { isAutomaticNumber, suggestNextNumber, type NumberCounters } from './numbering';
 import { printDocument } from './printDocument';
 import { computeTotals } from './totals';
 import { priceUnitOptions, toMeasureUnitCode } from './units';
@@ -79,8 +79,9 @@ export function DocumentEditor({
 
   const handleKindChange = (kind: DocumentKind) => {
     const year = Number(draft.issueDate.slice(0, 4));
-    // Swap the suggested number only if the user has not typed their own.
-    const isAutoNumber = draft.isNew && draft.number === suggestNextNumber(counters, draft.kind, year);
+    // Swap the number only if it is still an automatic one (not typed by the user),
+    // whatever year it was made for, so a quotation never keeps an INV- number.
+    const isAutoNumber = draft.isNew && isAutomaticNumber(draft.kind, draft.number);
     const hasDueDate = DOCUMENT_KIND_CONFIG[kind].dueDateLabel !== null;
     update({
       kind,

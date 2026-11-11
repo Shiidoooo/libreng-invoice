@@ -33,3 +33,9 @@ export function advanceCounters(counters: NumberCounters, kind: DocumentKind, do
   if (sequence <= (counters[key] ?? 0)) return counters;
   return { ...counters, [key]: sequence };
 }
+
+/** True for numbers in the automatic format for this kind, e.g. "INV-2026-0007". */
+export function isAutomaticNumber(kind: DocumentKind, documentNumber: string): boolean {
+  const prefix = DOCUMENT_KIND_CONFIG[kind].numberPrefix;
+  return new RegExp(`^${prefix}-\\d{4}-\\d{${SEQUENCE_DIGITS},}$`).test(documentNumber);
+}

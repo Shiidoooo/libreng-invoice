@@ -103,6 +103,8 @@ begin
   if exists (select 1 from public.documents where id = new.id) then
     return new;
   end if;
+  -- One user at a time, so parallel inserts cannot slip past the cap.
+  perform pg_advisory_xact_lock(hashtext('documents:' || new.user_id::text));
   if (select count(*) from public.documents where user_id = new.user_id) >= 10000 then
     raise exception 'Document limit reached' using errcode = 'PT422';
   end if;
@@ -153,19 +155,89 @@ set search_path = ''
 as $$
 begin
   perform public.consume_rate_limit('error_logs', 20, interval '1 minute');
-  return null;
+  return new;
 end;
 $$;
 
 drop trigger if exists client_error_logs_rate_limit on public.client_error_logs;
+-- Per row (unlike the document limits): one request must not be able to insert thousands of log rows.
 create trigger client_error_logs_rate_limit
   before insert on public.client_error_logs
-  for each statement execute function public.limit_error_log_writes();
+  for each row execute function public.limit_error_log_writes();
 
 -- Trigger functions are not meant to be called directly.
 revoke all on function public.limit_document_writes() from public, anon, authenticated;
 revoke all on function public.limit_profile_writes() from public, anon, authenticated;
 revoke all on function public.enforce_document_limit() from public, anon, authenticated;
 revoke all on function public.limit_error_log_writes() from public, anon, authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Size limits on JSON columns. The app enforces field lengths, but a script could
+-- otherwise store megabytes in an extra JSON key. Limits are in bytes (UTF-8 can
+-- use up to 4 bytes per character), with headroom over the app's own limits.
+-- ---------------------------------------------------------------------------
+alter table public.documents drop constraint if exists documents_customer_size;
+alter table public.documents add constraint documents_customer_size check (octet_length(customer::text) <= 4096);
+alter table public.documents drop constraint if exists documents_items_size;
+alter table public.documents add constraint documents_items_size check (octet_length(items::text) <= 100000);
+alter table public.documents drop constraint if exists documents_discount_size;
+alter table public.documents add constraint documents_discount_size check (octet_length(discount::text) <= 256);
+alter table public.documents drop constraint if exists documents_other_charge_size;
+alter table public.documents add constraint documents_other_charge_size check (octet_length(other_charge::text) <= 1024);
+alter table public.business_profiles drop constraint if exists business_profiles_payment_methods_size;
+alter table public.business_profiles add constraint business_profiles_payment_methods_size check (octet_length(payment_methods::text) <= 16384);
+
+-- ---------------------------------------------------------------------------
+-- Numbering counters: written only by the trigger, never directly by users.
+-- The trigger now runs as the table owner and skips years the table cannot hold,
+-- so an odd number like INV-1999-0001 saves instead of failing.
+-- ---------------------------------------------------------------------------
+revoke insert, update, delete on public.document_counters from authenticated;
+
+create or replace function public.advance_document_counter()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  prefix text := case new.kind
+    when 'invoice' then 'INV'
+    when 'quotation' then 'QUO'
+    when 'acknowledgement_receipt' then 'AR'
+    when 'delivery_receipt' then 'DR'
+  end;
+  parts text[];
+begin
+  -- Only numbers in the automatic format (e.g. INV-2026-0007) move the counter.
+  parts := regexp_match(new.number, '^' || prefix || '-(\d{4})-(\d{4,8})$');
+  if parts is null or parts[1]::int not between 2000 and 9999 then
+    return new;
+  end if;
+  insert into public.document_counters (user_id, kind, year, last_sequence)
+  values (new.user_id, new.kind, parts[1]::int, parts[2]::int)
+  on conflict (user_id, kind, year)
+  do update set last_sequence = greatest(public.document_counters.last_sequence, excluded.last_sequence);
+  return new;
+end;
+$$;
+
+revoke all on function public.advance_document_counter() from public, anon, authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Error log retention: keep 90 days. Run manually, or schedule it with the
+-- pg_cron extension (Database → Extensions → pg_cron), for example:
+--   select cron.schedule('purge-error-logs', '17 3 * * *', 'select public.purge_old_error_logs()');
+-- ---------------------------------------------------------------------------
+create or replace function public.purge_old_error_logs()
+returns void
+language sql
+security definer
+set search_path = ''
+as $$
+  delete from public.client_error_logs where created_at < now() - interval '90 days';
+$$;
+
+revoke all on function public.purge_old_error_logs() from public, anon, authenticated;
 
 commit;

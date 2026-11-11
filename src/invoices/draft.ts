@@ -12,7 +12,7 @@ import {
 } from '../money/money';
 import { DOCUMENT_KIND_CONFIG } from './documentKinds';
 import { suggestNextNumber, type NumberCounters } from './numbering';
-import { computeLineAmount } from './totals';
+import { computeLineAmount, computeTotals } from './totals';
 import type { BusinessDocument, Discount, DocumentKind, LineItem, Party } from './types';
 import { conversionRatio, toMeasureUnitCode } from './units';
 
@@ -282,6 +282,11 @@ export function convertDraft(draft: DocumentDraft, now: string): DraftConversion
     createdAt: draft.createdAt ?? now,
     updatedAt: now,
   };
+
+  // The database stores amounts paid up to this limit, so a larger total could never be marked paid.
+  if (computeTotals(document).total > MAX_DOCUMENT_AMOUNT_CENTAVOS) {
+    errors.items = 'The total is too large. The most one document can hold is ₱9,999,999,999.99.';
+  }
 
   return { document, errors, isValid: Object.keys(errors).length === 0 };
 }

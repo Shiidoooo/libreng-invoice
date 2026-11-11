@@ -55,6 +55,10 @@ export function AboutContent() {
           <li>Only you can see your documents. Each account is kept separate by the database itself.</li>
           <li>You can download a backup at any time, and delete your account and all its data in My business.</li>
           <li>We do not sell your data or show ads.</li>
+          <li>
+            When something goes wrong, we keep a short technical note (what failed, the page and your browser type) for 90
+            days so we can fix it. It never includes your documents or passwords.
+          </li>
         </ul>
       </section>
 

@@ -12,7 +12,6 @@ import {
   signInWithGoogle,
   signInWithPassword,
   signUpWithPassword,
-  takeSignInErrorFromUrl,
   validateEmail,
   validateNewPassword,
 } from './session';
@@ -27,16 +26,14 @@ const MODE_TITLES: Record<Mode, string> = {
 
 type Feedback = { tone: 'success' | 'error'; message: string } | null;
 
-export function SignInPage() {
+/** `notice` explains why the user landed here, e.g. an expired email link. */
+export function SignInPage({ notice }: { notice: string | null }) {
   const [mode, setMode] = useState<Mode>('sign_in');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string; confirmPassword?: string }>({});
-  const [feedback, setFeedback] = useState<Feedback>(() => {
-    const urlError = takeSignInErrorFromUrl();
-    return urlError ? { tone: 'error', message: `Sign-in failed: ${urlError}` } : null;
-  });
+  const [feedback, setFeedback] = useState<Feedback>(notice ? { tone: 'error', message: notice } : null);
   const [isBusy, setIsBusy] = useState(false);
   const [isAboutOpen, setIsAboutOpen] = useState(false);
 
