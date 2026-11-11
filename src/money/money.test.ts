@@ -4,6 +4,7 @@ import {
   basisPointsToPlainText,
   centavosToPlainText,
   formatMoney,
+  getCurrencySymbol,
   parseMoney,
   parsePercent,
   parseQuantity,
@@ -72,5 +73,11 @@ describe('round-tripping to input text', () => {
 describe('formatMoney', () => {
   it('formats pesos with the peso sign and separators', () => {
     expect(formatMoney(125050, 'PHP')).toBe('₱1,250.50');
+  });
+});
+
+describe('getCurrencySymbol', () => {
+  it('returns the symbol shown before amounts', () => {
+    expect(getCurrencySymbol('PHP')).toBe('₱');
   });
 });

@@ -99,3 +99,9 @@ const quantityFormatter = new Intl.NumberFormat('en-PH', { maximumFractionDigits
 export function formatQuantity(thousandths: number): string {
   return quantityFormatter.format(thousandths / 1000);
 }
+
+/** PHP → "₱", USD → "$". Used as the prefix inside money inputs. */
+export function getCurrencySymbol(currency: CurrencyCode): string {
+  const parts = new Intl.NumberFormat('en-PH', { style: 'currency', currency }).formatToParts(0);
+  return parts.find((part) => part.type === 'currency')?.value ?? currency;
+}

@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react';
 import type { BusinessProfile } from '../business/types';
 import { addDays } from '../dates/dates';
-import { CURRENCIES, formatMoney, type CurrencyCode } from '../money/money';
+import { CURRENCIES, formatMoney, getCurrencySymbol, type CurrencyCode } from '../money/money';
+import { AffixInput } from '../ui/AffixInput';
 import { FormField } from '../ui/FormField';
+import { IconPlus, IconTrash } from '../ui/icons';
 import { DOCUMENT_KIND_CONFIG } from './documentKinds';
 import { DocumentPreview } from './DocumentPreview';
-import { printDocument } from './printDocument';
 import {
   DEFAULT_DUE_IN_DAYS,
   MAX_LINE_ITEMS,
@@ -16,8 +17,12 @@ import {
   type LineItemDraft,
 } from './draft';
 import { suggestNextNumber, type NumberCounters } from './numbering';
+import { printDocument } from './printDocument';
 import { computeTotals } from './totals';
 import { DOCUMENT_KINDS, type BusinessDocument, type Discount, type DocumentKind, type Party } from './types';
+
+const COMMON_UNITS = ['pcs', 'pack', 'box', 'kg', 'g', 'L', 'mL', 'dozen', 'set', 'hr', 'day', 'session', 'lot'];
+const EXTRA_FIELDS = ['discount', 'otherCharge', 'otherChargeLabel', 'amountPaid'];
 
 interface DocumentEditorProps {
   draft: DocumentDraft;
@@ -32,6 +37,10 @@ interface DocumentEditorProps {
 }
 
 type PaneOnMobile = 'form' | 'preview';
+
+function hasExtras(draft: DocumentDraft): boolean {
+  return draft.discountKind !== 'none' || draft.otherChargeText.trim() !== '' || draft.amountPaidText.trim() !== '';
+}
 
 export function DocumentEditor({
   draft,
@@ -48,11 +57,15 @@ export function DocumentEditor({
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [paneOnMobile, setPaneOnMobile] = useState<PaneOnMobile>('form');
+  const [isExtrasOpen, setIsExtrasOpen] = useState(() => hasExtras(draft));
 
   const config = DOCUMENT_KIND_CONFIG[draft.kind];
   const conversion = useMemo(() => convertDraft(draft, now().toISOString()), [draft, now]);
   const totals = computeTotals(conversion.document);
   const visibleErrors = hasTriedSave ? conversion.errors : {};
+  const currencySymbol = getCurrencySymbol(draft.currency);
+  const money = (centavos: number) => formatMoney(centavos, draft.currency);
+  const showsBalance = config.amountPaidLabel !== null && totals.amountPaid > 0;
 
   const update = (changes: Partial<DocumentDraft>) => {
     setSaveMessage(null);
@@ -88,13 +101,16 @@ export function DocumentEditor({
     setSaveError(null);
     setSaveMessage(null);
     if (!conversion.isValid) {
-      setSaveError('Some fields need fixing. They are marked below.');
+      const errorFields = Object.keys(conversion.errors);
+      if (errorFields.some((field) => EXTRA_FIELDS.includes(field))) setIsExtrasOpen(true);
+      setPaneOnMobile('form');
+      setSaveError(`Please fix ${errorFields.length === 1 ? 'the field' : `the ${errorFields.length} fields`} marked in red.`);
       return;
     }
     setIsSaving(true);
     try {
       await onSave(conversion.document);
-      setSaveMessage(`${config.title} ${conversion.document.number} saved.`);
+      setSaveMessage(shouldPrint ? 'Saved. Choose “Save as PDF” in the print window.' : `Saved ${conversion.document.number}.`);
       if (shouldPrint) printDocument(conversion.document.number);
     } catch (error) {
       setSaveError(error instanceof Error ? error.message : 'Could not save. Please try again.');
@@ -107,7 +123,7 @@ export function DocumentEditor({
     <div className="editor" data-pane={paneOnMobile}>
       <div className="pane-switch" role="group" aria-label="Show">
         <button type="button" aria-pressed={paneOnMobile === 'form'} onClick={() => setPaneOnMobile('form')}>
-          Edit
+          Fill in
         </button>
         <button type="button" aria-pressed={paneOnMobile === 'preview'} onClick={() => setPaneOnMobile('preview')}>
           Preview
@@ -123,58 +139,27 @@ export function DocumentEditor({
         }}
       >
         <fieldset className="card">
-          <legend>Document</legend>
-          <div className="grid-2">
-            <FormField label="Type">
-              {(control) => (
-                <select {...control} value={draft.kind} onChange={(e) => handleKindChange(e.target.value as DocumentKind)}>
-                  {DOCUMENT_KINDS.map((kind) => (
-                    <option key={kind} value={kind}>
-                      {DOCUMENT_KIND_CONFIG[kind].title}
-                    </option>
-                  ))}
-                </select>
-              )}
-            </FormField>
-            <FormField label="Number" isRequired error={visibleErrors.number}>
-              {(control) => (
+          <legend>What are you making?</legend>
+          <div className="kind-picker">
+            {DOCUMENT_KINDS.map((kind) => (
+              <label key={kind} className="kind-option">
                 <input
-                  {...control}
-                  value={draft.number}
-                  maxLength={TEXT_LIMITS.number}
-                  onChange={(e) => update({ number: e.target.value })}
+                  type="radio"
+                  name="document-kind"
+                  value={kind}
+                  checked={draft.kind === kind}
+                  onChange={() => handleKindChange(kind)}
                 />
-              )}
-            </FormField>
-            <FormField label="Date" isRequired error={visibleErrors.issueDate}>
-              {(control) => (
-                <input {...control} type="date" value={draft.issueDate} onChange={(e) => update({ issueDate: e.target.value })} />
-              )}
-            </FormField>
-            {config.dueDateLabel && (
-              <FormField label={config.dueDateLabel} error={visibleErrors.dueDate}>
-                {(control) => (
-                  <input {...control} type="date" value={draft.dueDate} onChange={(e) => update({ dueDate: e.target.value })} />
-                )}
-              </FormField>
-            )}
-            <FormField label="Currency">
-              {(control) => (
-                <select {...control} value={draft.currency} onChange={(e) => update({ currency: e.target.value as CurrencyCode })}>
-                  {CURRENCIES.map((code) => (
-                    <option key={code} value={code}>
-                      {code}
-                    </option>
-                  ))}
-                </select>
-              )}
-            </FormField>
+                <span className="kind-option-title">{DOCUMENT_KIND_CONFIG[kind].title}</span>
+                <span className="kind-option-purpose">{DOCUMENT_KIND_CONFIG[kind].purpose}</span>
+              </label>
+            ))}
           </div>
         </fieldset>
 
         <fieldset className="card">
           <legend>{config.customerLabel}</legend>
-          <FormField label="Name" error={visibleErrors['customer.name']} hint="Past customers fill in automatically.">
+          <FormField label="Customer name" error={visibleErrors['customer.name']} hint="Pick a past customer to fill in their details.">
             {(control) => (
               <input
                 {...control}
@@ -191,27 +176,29 @@ export function DocumentEditor({
               <option key={customer.name} value={customer.name} />
             ))}
           </datalist>
-          <FormField label="Address" error={visibleErrors['customer.address']}>
-            {(control) => (
-              <textarea
-                {...control}
-                rows={2}
-                value={draft.customer.address}
-                maxLength={TEXT_LIMITS.partyAddress}
-                onChange={(e) => updateCustomer({ address: e.target.value })}
-              />
-            )}
-          </FormField>
-          <FormField label="Contact (phone or email)" error={visibleErrors['customer.contact']}>
-            {(control) => (
-              <input
-                {...control}
-                value={draft.customer.contact}
-                maxLength={TEXT_LIMITS.partyContact}
-                onChange={(e) => updateCustomer({ contact: e.target.value })}
-              />
-            )}
-          </FormField>
+          <div className="grid-2">
+            <FormField label="Address" error={visibleErrors['customer.address']}>
+              {(control) => (
+                <textarea
+                  {...control}
+                  rows={2}
+                  value={draft.customer.address}
+                  maxLength={TEXT_LIMITS.partyAddress}
+                  onChange={(e) => updateCustomer({ address: e.target.value })}
+                />
+              )}
+            </FormField>
+            <FormField label="Phone or email" error={visibleErrors['customer.contact']}>
+              {(control) => (
+                <input
+                  {...control}
+                  value={draft.customer.contact}
+                  maxLength={TEXT_LIMITS.partyContact}
+                  onChange={(e) => updateCustomer({ contact: e.target.value })}
+                />
+              )}
+            </FormField>
+          </div>
         </fieldset>
 
         <fieldset className="card">
@@ -221,72 +208,72 @@ export function DocumentEditor({
             {draft.items.map((item, index) => {
               const prefix = `items.${item.id}`;
               return (
-                <li key={item.id} className="item-row">
-                  <FormField
-                    className="item-description"
-                    label={`Item ${index + 1} description`}
-                    isRequired
-                    error={visibleErrors[`${prefix}.description`]}
-                  >
+                <li key={item.id} className="item-card">
+                  <div className="item-card-header">
+                    <span className="item-card-number">Item {index + 1}</span>
+                    <span className="item-card-amount">{money(totals.lineAmounts[index] ?? 0)}</span>
+                    <button
+                      type="button"
+                      className="icon-button"
+                      aria-label={`Remove item ${index + 1}${item.description ? `: ${item.description}` : ''}`}
+                      disabled={draft.items.length === 1}
+                      onClick={() => update({ items: draft.items.filter((other) => other.id !== item.id) })}
+                    >
+                      <IconTrash />
+                    </button>
+                  </div>
+                  <FormField label="Description" isRequired error={visibleErrors[`${prefix}.description`]}>
                     {(control) => (
                       <input
                         {...control}
+                        placeholder="e.g. Coke 1.5L, Logo design"
                         value={item.description}
                         maxLength={TEXT_LIMITS.itemDescription}
                         onChange={(e) => updateItem(item.id, { description: e.target.value })}
                       />
                     )}
                   </FormField>
-                  <FormField label="Qty" isRequired error={visibleErrors[`${prefix}.quantity`]}>
-                    {(control) => (
-                      <input
-                        {...control}
-                        inputMode="decimal"
-                        value={item.quantityText}
-                        onChange={(e) => updateItem(item.id, { quantityText: e.target.value })}
-                      />
-                    )}
-                  </FormField>
-                  <FormField label="Unit" error={visibleErrors[`${prefix}.unit`]}>
-                    {(control) => (
-                      <input
-                        {...control}
-                        list="common-units"
-                        value={item.unit}
-                        maxLength={TEXT_LIMITS.itemUnit}
-                        onChange={(e) => updateItem(item.id, { unit: e.target.value })}
-                      />
-                    )}
-                  </FormField>
-                  <FormField label="Unit price" error={visibleErrors[`${prefix}.unitPrice`]}>
-                    {(control) => (
-                      <input
-                        {...control}
-                        inputMode="decimal"
-                        placeholder="0.00"
-                        value={item.unitPriceText}
-                        onChange={(e) => updateItem(item.id, { unitPriceText: e.target.value })}
-                      />
-                    )}
-                  </FormField>
-                  <p className="item-amount" aria-live="polite">
-                    <span className="field-label">Amount</span>
-                    {formatMoney(totals.lineAmounts[index] ?? 0, draft.currency)}
-                  </p>
-                  <button
-                    type="button"
-                    className="button-quiet item-remove"
-                    disabled={draft.items.length === 1}
-                    onClick={() => update({ items: draft.items.filter((other) => other.id !== item.id) })}
-                  >
-                    Remove<span className="visually-hidden"> item {index + 1}</span>
-                  </button>
+                  <div className="item-numbers">
+                    <FormField label="Qty" isRequired error={visibleErrors[`${prefix}.quantity`]}>
+                      {(control) => (
+                        <input
+                          {...control}
+                          inputMode="decimal"
+                          value={item.quantityText}
+                          onChange={(e) => updateItem(item.id, { quantityText: e.target.value })}
+                        />
+                      )}
+                    </FormField>
+                    <FormField label="Unit" error={visibleErrors[`${prefix}.unit`]}>
+                      {(control) => (
+                        <input
+                          {...control}
+                          list="common-units"
+                          value={item.unit}
+                          maxLength={TEXT_LIMITS.itemUnit}
+                          onChange={(e) => updateItem(item.id, { unit: e.target.value })}
+                        />
+                      )}
+                    </FormField>
+                    <FormField label="Price each" error={visibleErrors[`${prefix}.unitPrice`]}>
+                      {(control) => (
+                        <AffixInput
+                          {...control}
+                          prefix={currencySymbol}
+                          inputMode="decimal"
+                          placeholder="0.00"
+                          value={item.unitPriceText}
+                          onChange={(e) => updateItem(item.id, { unitPriceText: e.target.value })}
+                        />
+                      )}
+                    </FormField>
+                  </div>
                 </li>
               );
             })}
           </ol>
           <datalist id="common-units">
-            {['pcs', 'pack', 'box', 'kg', 'g', 'L', 'mL', 'dozen', 'set', 'hr', 'day', 'session', 'lot'].map((unit) => (
+            {COMMON_UNITS.map((unit) => (
               <option key={unit} value={unit} />
             ))}
           </datalist>
@@ -296,12 +283,15 @@ export function DocumentEditor({
             disabled={draft.items.length >= MAX_LINE_ITEMS}
             onClick={() => update({ items: [...draft.items, createEmptyLineItem(createId())] })}
           >
-            + Add item
+            <IconPlus /> Add another item
           </button>
         </fieldset>
 
-        <fieldset className="card">
-          <legend>Adjustments</legend>
+        <details className="card extras" open={isExtrasOpen} onToggle={(e) => setIsExtrasOpen(e.currentTarget.open)}>
+          <summary>
+            <span className="extras-title">Discount, fees{config.amountPaidLabel ? ' & payment' : ''}</span>
+            <span className="field-hint">Optional</span>
+          </summary>
           <div className="grid-2">
             <FormField label="Discount">
               {(control) => (
@@ -311,19 +301,21 @@ export function DocumentEditor({
                   onChange={(e) => update({ discountKind: e.target.value as Discount['kind'], discountText: '' })}
                 >
                   <option value="none">No discount</option>
-                  <option value="percent">Percent (%)</option>
-                  <option value="fixed">Fixed amount</option>
+                  <option value="percent">Percent off (%)</option>
+                  <option value="fixed">Amount off ({currencySymbol})</option>
                 </select>
               )}
             </FormField>
             {draft.discountKind !== 'none' && (
               <FormField
-                label={draft.discountKind === 'percent' ? 'Discount %' : 'Discount amount'}
+                label={draft.discountKind === 'percent' ? 'Discount percent' : 'Discount amount'}
                 error={visibleErrors.discount}
               >
                 {(control) => (
-                  <input
+                  <AffixInput
                     {...control}
+                    prefix={draft.discountKind === 'fixed' ? currencySymbol : undefined}
+                    suffix={draft.discountKind === 'percent' ? '%' : undefined}
                     inputMode="decimal"
                     value={draft.discountText}
                     onChange={(e) => update({ discountText: e.target.value })}
@@ -331,7 +323,7 @@ export function DocumentEditor({
                 )}
               </FormField>
             )}
-            <FormField label="Extra charge label" error={visibleErrors.otherChargeLabel} hint="e.g. Delivery fee, Rush fee">
+            <FormField label="Extra fee name" error={visibleErrors.otherChargeLabel} hint="e.g. Delivery fee, Rush fee">
               {(control) => (
                 <input
                   {...control}
@@ -341,10 +333,11 @@ export function DocumentEditor({
                 />
               )}
             </FormField>
-            <FormField label="Extra charge amount" error={visibleErrors.otherCharge}>
+            <FormField label="Extra fee amount" error={visibleErrors.otherCharge}>
               {(control) => (
-                <input
+                <AffixInput
                   {...control}
+                  prefix={currencySymbol}
                   inputMode="decimal"
                   placeholder="0.00"
                   value={draft.otherChargeText}
@@ -356,11 +349,12 @@ export function DocumentEditor({
               <FormField
                 label={config.amountPaidLabel}
                 error={visibleErrors.amountPaid}
-                hint={draft.kind === 'invoice' ? 'Down payment or partial payment received.' : undefined}
+                hint={draft.kind === 'invoice' ? 'Down payment or partial payment already received.' : undefined}
               >
                 {(control) => (
-                  <input
+                  <AffixInput
                     {...control}
+                    prefix={currencySymbol}
                     inputMode="decimal"
                     placeholder="0.00"
                     value={draft.amountPaidText}
@@ -370,17 +364,46 @@ export function DocumentEditor({
               </FormField>
             )}
           </div>
-          <p className="editor-total" aria-live="polite">
-            Total: <strong>{formatMoney(totals.total, draft.currency)}</strong>
-            {config.amountPaidLabel && totals.amountPaid > 0 && (
-              <> · Balance due: <strong>{formatMoney(totals.balanceDue, draft.currency)}</strong></>
-            )}
-          </p>
-        </fieldset>
+        </details>
 
         <fieldset className="card">
-          <legend>Notes</legend>
-          <FormField label="Notes or terms" error={visibleErrors.notes}>
+          <legend>Details</legend>
+          <div className="grid-2">
+            <FormField label="Document number" isRequired error={visibleErrors.number} hint="Filled in for you. You can change it.">
+              {(control) => (
+                <input
+                  {...control}
+                  value={draft.number}
+                  maxLength={TEXT_LIMITS.number}
+                  onChange={(e) => update({ number: e.target.value })}
+                />
+              )}
+            </FormField>
+            <FormField label="Currency">
+              {(control) => (
+                <select {...control} value={draft.currency} onChange={(e) => update({ currency: e.target.value as CurrencyCode })}>
+                  {CURRENCIES.map((code) => (
+                    <option key={code} value={code}>
+                      {code} ({getCurrencySymbol(code)})
+                    </option>
+                  ))}
+                </select>
+              )}
+            </FormField>
+            <FormField label="Date" isRequired error={visibleErrors.issueDate}>
+              {(control) => (
+                <input {...control} type="date" value={draft.issueDate} onChange={(e) => update({ issueDate: e.target.value })} />
+              )}
+            </FormField>
+            {config.dueDateLabel && (
+              <FormField label={config.dueDateLabel} error={visibleErrors.dueDate}>
+                {(control) => (
+                  <input {...control} type="date" value={draft.dueDate} onChange={(e) => update({ dueDate: e.target.value })} />
+                )}
+              </FormField>
+            )}
+          </div>
+          <FormField label="Notes or terms" error={visibleErrors.notes} hint="Printed at the bottom, e.g. “Thank you!” or payment terms.">
             {(control) => (
               <textarea
                 {...control}
@@ -401,22 +424,28 @@ export function DocumentEditor({
           </label>
         </fieldset>
 
-        <div className="editor-actions">
-          <div role="status" aria-live="polite" className="editor-status">
+        <div className="action-bar">
+          <div className="action-bar-total">
+            <span className="action-bar-label">{showsBalance ? 'Balance due' : 'Total'}</span>
+            <strong className="action-bar-amount">{money(showsBalance ? totals.balanceDue : totals.total)}</strong>
+          </div>
+          <div className="action-bar-buttons">
+            <button type="submit" className="button-secondary" disabled={isSaving}>
+              {isSaving ? 'Saving…' : 'Save'}
+            </button>
+            <button
+              type="button"
+              className="button-primary"
+              disabled={isSaving}
+              onClick={() => void handleSave({ shouldPrint: true })}
+            >
+              Save &amp; get PDF
+            </button>
+          </div>
+          <div role="status" aria-live="polite" className="action-bar-status">
             {saveError && <p className="banner banner-error">{saveError}</p>}
             {saveMessage && <p className="banner banner-success">{saveMessage}</p>}
           </div>
-          <button type="submit" className="button-secondary" disabled={isSaving}>
-            {isSaving ? 'Saving…' : 'Save'}
-          </button>
-          <button
-            type="button"
-            className="button-primary"
-            disabled={isSaving}
-            onClick={() => void handleSave({ shouldPrint: true })}
-          >
-            Save &amp; download PDF
-          </button>
         </div>
       </form>
 

@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { FormField } from '../ui/FormField';
+import { GoogleMark } from '../ui/icons';
 import {
   AuthFlowError,
   EMAIL_MAX_LENGTH,
@@ -112,15 +113,20 @@ export function SignInPage() {
     <main id="main" className="sign-in">
       <section className="card sign-in-card">
         <div>
-          <p className="sign-in-title">Libreng Invoice</p>
+          <p className="app-logo sign-in-logo">
+            <span className="app-logo-mark" aria-hidden="true">
+              ₱
+            </span>
+            Libreng Invoice
+          </p>
           <p className="field-hint">Free invoices, quotations and receipts for small businesses and freelancers.</p>
         </div>
         <h1 className="sign-in-heading">{MODE_TITLES[mode]}</h1>
 
         {mode !== 'forgot_password' && (
           <>
-            <button type="button" className="button-secondary sign-in-button" disabled={isBusy} onClick={() => void handleGoogle()}>
-              Continue with Google
+            <button type="button" className="button-google sign-in-button" disabled={isBusy} onClick={() => void handleGoogle()}>
+              <GoogleMark /> Continue with Google
             </button>
             <p className="sign-in-divider">
               <span>or use your email</span>

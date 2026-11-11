@@ -2,7 +2,7 @@ import type { BusinessProfile } from '../business/types';
 import { formatDisplayDate } from '../dates/dates';
 import { formatMoney, formatQuantity, basisPointsToPlainText } from '../money/money';
 import { DOCUMENT_KIND_CONFIG } from './documentKinds';
-import { computeTotals } from './totals';
+import { computeTotals, getPaymentStatus } from './totals';
 import type { BusinessDocument } from './types';
 
 interface DocumentPreviewProps {
@@ -17,6 +17,7 @@ export function DocumentPreview({ document: doc, profile }: DocumentPreviewProps
   const money = (centavos: number) => formatMoney(centavos, doc.currency);
   const hasCustomer = doc.customer.name || doc.customer.address || doc.customer.contact;
   const hasPayment = config.amountPaidLabel !== null && totals.amountPaid > 0;
+  const isPaidInvoice = doc.kind === 'invoice' && totals.total > 0 && getPaymentStatus(totals) === 'paid';
 
   return (
     <article className="sheet" aria-label={`${config.title} preview`}>
@@ -34,6 +35,7 @@ export function DocumentPreview({ document: doc, profile }: DocumentPreviewProps
         </div>
         <div className="sheet-title-block">
           <h2 className="sheet-title">{config.title}</h2>
+          {isPaidInvoice && <p className="sheet-paid-stamp">Paid</p>}
           <dl className="sheet-meta">
             <dt>No.</dt>
             <dd>{doc.number || '—'}</dd>
