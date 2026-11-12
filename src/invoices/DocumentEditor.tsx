@@ -5,7 +5,7 @@ import { CURRENCIES, centavosToPlainText, formatMoney, formatQuantity, getCurren
 import { describeError } from '../errors/reportError';
 import { AffixInput } from '../ui/AffixInput';
 import { FormField } from '../ui/FormField';
-import { IconMail, IconPlus, IconTrash } from '../ui/icons';
+import { IconMail, IconPlus, IconPrint, IconTrash } from '../ui/icons';
 import { DOCUMENT_KIND_CONFIG } from './documentKinds';
 import { DocumentPreview } from './DocumentPreview';
 import {
@@ -18,7 +18,9 @@ import {
   type LineItemDraft,
 } from './draft';
 import { isAutomaticNumber, suggestNextNumber, type NumberCounters } from './numbering';
+import { downloadFile } from './documentPdf';
 import { printDocument } from './printDocument';
+import { renderDocumentPdf } from './renderDocumentPdf';
 import { SendEmailModal } from './SendEmailModal';
 import { computeTotals } from './totals';
 import { priceUnitOptions, toMeasureUnitCode } from './units';
@@ -42,7 +44,12 @@ interface DocumentEditorProps {
   onEmailClosed?: () => void;
 }
 
-type AfterSave = 'nothing' | 'print' | 'email';
+type AfterSave = 'nothing' | 'download' | 'print' | 'email';
+
+const SAVED_MESSAGE: Record<Exclude<AfterSave, 'nothing' | 'email'>, string> = {
+  download: 'Saved. The PDF is in your Downloads.',
+  print: 'Saved. Choose your printer in the print window.',
+};
 
 type PaneOnMobile = 'form' | 'preview';
 
@@ -125,11 +132,20 @@ export function DocumentEditor({
     setIsSaving(true);
     try {
       await onSave(conversion.document);
-      setSaveMessage(
-        afterSave === 'print' ? 'Saved. Choose “Save as PDF” in the print window.' : `Saved ${conversion.document.number}.`,
-      );
-      if (afterSave === 'print') printDocument(conversion.document.number);
-      if (afterSave === 'email') setEmailDocument(conversion.document);
+      const saved = conversion.document;
+      if (afterSave === 'download') {
+        try {
+          downloadFile(await renderDocumentPdf(saved, profile));
+        } catch (error) {
+          // The document itself is saved; only the PDF failed.
+          setSaveMessage(`Saved ${saved.number}.`);
+          setSaveError(describeError(error, `make the PDF of ${saved.number}`));
+          return;
+        }
+      }
+      setSaveMessage(afterSave === 'download' || afterSave === 'print' ? SAVED_MESSAGE[afterSave] : `Saved ${saved.number}.`);
+      if (afterSave === 'print') printDocument(saved.number);
+      if (afterSave === 'email') setEmailDocument(saved);
     } catch (error) {
       setSaveError(describeError(error, `save ${conversion.document.number}`, 'Could not save. Please try again.'));
     } finally {
@@ -526,6 +542,16 @@ export function DocumentEditor({
               <IconMail />
               <span className="action-bar-email-text">Email</span>
             </button>
+            <button
+              type="button"
+              className="button-secondary action-bar-icon"
+              disabled={isSaving}
+              aria-label="Save and print"
+              title="Save and print"
+              onClick={() => void handleSave('print')}
+            >
+              <IconPrint />
+            </button>
             <button type="submit" className="button-secondary" disabled={isSaving}>
               {isSaving ? 'Saving…' : 'Save'}
             </button>
@@ -533,7 +559,7 @@ export function DocumentEditor({
               type="button"
               className="button-primary"
               disabled={isSaving}
-              onClick={() => void handleSave('print')}
+              onClick={() => void handleSave('download')}
             >
               Save &amp; get PDF
             </button>

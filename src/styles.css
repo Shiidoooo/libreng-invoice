@@ -1206,10 +1206,34 @@ button:disabled,
   }
 }
 
-@media (max-width: 359px) {
-  /* Icon only on the smallest phones; the button keeps its aria-label. */
+/* A square, icon-only button in the bar (it always has an aria-label). */
+.action-bar .action-bar-icon {
+  width: var(--touch-target);
+  padding: 0;
+  flex-shrink: 0;
+}
+
+@media (max-width: 479px) {
+  /* Icon only on phones; the button keeps its aria-label. */
   .action-bar-email-text {
     display: none;
+  }
+
+  .action-bar .action-bar-email {
+    width: var(--touch-target);
+    padding: 0;
+    flex-shrink: 0;
+  }
+}
+
+@media (max-width: 359px) {
+  /* The smallest phones: the main action gets a row of its own. */
+  .action-bar-buttons {
+    flex-wrap: wrap;
+  }
+
+  .action-bar-buttons .button-primary {
+    flex: 1 1 100%;
   }
 }
 

@@ -81,7 +81,7 @@ export async function createDocumentPdf(sheet: HTMLElement, documentNumber: stri
 
     return new File([pdf.output('blob')], pdfFileName(documentNumber), { type: 'application/pdf' });
   } catch (error) {
-    throw new AppError('internal', 'Could not make the PDF here. Use “Get PDF” to save it from the print window instead.', {
+    throw new AppError('internal', 'Could not make the PDF on this device. Use Print and choose “Save as PDF” instead.', {
       cause: error,
     });
   }

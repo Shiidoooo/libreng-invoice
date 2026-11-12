@@ -1,11 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
+import { useEffect, useState } from 'react';
 import type { BusinessProfile } from '../business/types';
 import { describeError } from '../errors/reportError';
 import { FormField } from '../ui/FormField';
 import { Modal } from '../ui/Modal';
-import { DocumentPreview } from './DocumentPreview';
-import { PDF_SHEET_WIDTH_PX, canShareFile, createDocumentPdf, downloadFile } from './documentPdf';
+import { canShareFile, downloadFile } from './documentPdf';
 import {
   EMAIL_MESSAGE_MAX_LENGTH,
   EMAIL_SUBJECT_MAX_LENGTH,
@@ -17,6 +15,7 @@ import {
   type EmailContent,
 } from './emailMessage';
 import { printDocument } from './printDocument';
+import { renderDocumentPdf } from './renderDocumentPdf';
 import type { BusinessDocument } from './types';
 
 interface SendEmailModalProps {
@@ -45,19 +44,15 @@ type CopyState = 'idle' | 'copied' | 'failed';
 type PdfState = { status: 'making' } | { status: 'ready'; file: File } | { status: 'failed'; message: string };
 
 /**
- * Lays the sheet out off-screen at A4 width (whatever the screen size) and turns it into
- * a PDF file once, when the window opens. Phones only allow sharing right after a tap,
- * so the file has to be ready before the person presses Share.
+ * Makes the PDF once, when the window opens. Phones only allow sharing right after a
+ * tap, so the file has to be ready before the person presses Share.
  */
-function usePdfFile(document: BusinessDocument, profile: BusinessProfile) {
-  const sheetHostRef = useRef<HTMLDivElement>(null);
+function usePdfFile(document: BusinessDocument, profile: BusinessProfile): PdfState {
   const [pdf, setPdf] = useState<PdfState>({ status: 'making' });
 
   useEffect(() => {
     let isCurrent = true;
-    const sheet = sheetHostRef.current?.querySelector<HTMLElement>('.sheet');
-    if (!sheet) return;
-    createDocumentPdf(sheet, document.number).then(
+    renderDocumentPdf(document, profile).then(
       (file) => {
         if (isCurrent) setPdf({ status: 'ready', file });
       },
@@ -70,19 +65,13 @@ function usePdfFile(document: BusinessDocument, profile: BusinessProfile) {
     };
   }, [document, profile]);
 
-  const renderArea = createPortal(
-    <div ref={sheetHostRef} className="pdf-render-area" style={{ width: PDF_SHEET_WIDTH_PX }} aria-hidden="true">
-      <DocumentPreview document={document} profile={profile} />
-    </div>,
-    window.document.body,
-  );
-  return { pdf, renderArea };
+  return pdf;
 }
 
 function SendEmailForm({ document, profile, onClose }: { document: BusinessDocument; profile: BusinessProfile; onClose: () => void }) {
   const [email, setEmail] = useState<EmailContent>(() => buildEmail(document, profile));
   const [copyState, setCopyState] = useState<CopyState>('idle');
-  const { pdf, renderArea } = usePdfFile(document, profile);
+  const pdf = usePdfFile(document, profile);
   const pdfFile = pdf.status === 'ready' ? pdf.file : null;
   const canSharePdf = pdfFile !== null && canShareFile(pdfFile);
   const canShareText = typeof navigator.share === 'function';
@@ -120,7 +109,6 @@ function SendEmailForm({ document, profile, onClose }: { document: BusinessDocum
 
   return (
     <div className="send-email">
-      {renderArea}
       <div className="send-email-pdf" role="status" aria-live="polite">
         {pdf.status === 'making' && <p className="send-email-pdf-text">Making the PDF of {document.number}…</p>}
         {pdf.status === 'ready' && (
@@ -140,7 +128,7 @@ function SendEmailForm({ document, profile, onClose }: { document: BusinessDocum
           <>
             <p className="banner banner-error">{pdf.message}</p>
             <button type="button" className="button-secondary" onClick={() => printDocument(document.number)}>
-              Get PDF
+              Print or save as PDF
             </button>
           </>
         )}

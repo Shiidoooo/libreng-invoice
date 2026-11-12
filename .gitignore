@@ -12,6 +12,25 @@ dist
 dist-ssr
 *.local
 
+# Secrets and local settings. Only .env.example (placeholders) is committed.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+client_secret*.json
+service-account*.json
+
+# Review and security reports can list unfixed weaknesses: keep them on this computer.
+test-reports/
+
+# Deployment and tool state
+.vercel
+.supabase
+supabase/.temp
+coverage
+*.tsbuildinfo
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

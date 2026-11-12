@@ -41,7 +41,7 @@ const STEPS = [
   },
   {
     title: 'Save it and get the PDF',
-    body: 'Press “Save & get PDF”. The number is assigned for you (INV-2026-0001, 0002, …), and the PDF is ready to download or print.',
+    body: 'Press “Save & get PDF”. The number is assigned for you (INV-2026-0001, 0002, …), and the PDF is saved to your Downloads. A printer button is there if you want paper.',
   },
   {
     title: 'Send it and keep track',
@@ -108,7 +108,7 @@ const FAQ: { question: string; answer: ReactNode }[] = [
   },
   {
     question: 'How do I get the PDF?',
-    answer: 'Press “Save & get PDF” and choose “Save as PDF” in the print window, or press Email and use “Download PDF”. On a phone, “Share with PDF” attaches it to Gmail, Messenger or Viber.',
+    answer: 'Press “Save & get PDF” and the file is saved to your Downloads. To print instead, press the printer button beside Save. On a phone, Email then “Share with PDF” attaches it to Gmail, Messenger or Viber.',
   },
   {
     question: 'I made a mistake on a saved document. Can I fix it?',
