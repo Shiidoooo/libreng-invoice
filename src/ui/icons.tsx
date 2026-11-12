@@ -108,3 +108,9 @@ export const IconEdit = () => (
     <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" />
   </Icon>
 );
+
+export const IconDownload = () => (
+  <Icon width="16" height="16">
+    <path d="M12 3v12M7 10l5 5 5-5M4 21h16" />
+  </Icon>
+);

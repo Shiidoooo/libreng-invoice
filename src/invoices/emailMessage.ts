@@ -176,6 +176,3 @@ export function buildGmailLink(email: EmailContent): string {
   if (isEmailAddress(email.to)) params.set('to', email.to.trim());
   return `https://mail.google.com/mail/?${params.toString()}`;
 }
-
-/** Some email apps on Windows cut off mailto: links longer than about 2,000 characters. */
-export const MAILTO_SAFE_LENGTH = 2000;
