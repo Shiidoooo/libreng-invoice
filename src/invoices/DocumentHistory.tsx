@@ -3,7 +3,7 @@ import { formatDisplayDate } from '../dates/dates';
 import { formatMoney, type CurrencyCode } from '../money/money';
 import { FormField } from '../ui/FormField';
 import { describeError } from '../errors/reportError';
-import { IconPlus } from '../ui/icons';
+import { IconEdit, IconPlus } from '../ui/icons';
 import { useConfirm } from '../ui/useConfirm';
 import { DOCUMENT_KIND_CONFIG } from './documentKinds';
 import { computeTotals, getPaymentStatus, type DocumentTotals, type PaymentStatus } from './totals';
@@ -186,15 +186,15 @@ export function DocumentHistory({ documents, onOpen, onDuplicate, onEmail, onMar
             return (
               <li key={doc.id} className="document-card card">
                 <div className="document-card-main">
-                  <button type="button" className="document-card-open" onClick={() => void onOpen(doc)}>
-                    <span className="document-card-customer">{doc.customer.name || 'No customer name'}</span>
+                  <div className="document-card-summary">
+                    <h3 className="document-card-customer">{doc.customer.name || 'No customer name'}</h3>
                     <span className="document-card-meta">
                       <span className="document-card-number">{doc.number}</span>
                       <span>
                         {config.title} · {formatDisplayDate(doc.issueDate)}
                       </span>
                     </span>
-                  </button>
+                  </div>
                   <div className="document-card-amounts">
                     <strong>{formatMoney(totals.total, doc.currency)}</strong>
                     {status && <span className={`badge badge-${status}`}>{PAYMENT_STATUS_LABEL[status]}</span>}
@@ -204,6 +204,9 @@ export function DocumentHistory({ documents, onOpen, onDuplicate, onEmail, onMar
                   </div>
                 </div>
                 <div className="document-card-actions">
+                  <button type="button" className="button-secondary" onClick={() => void onOpen(doc)}>
+                    <IconEdit /> Edit<span className="visually-hidden"> {doc.number}</span>
+                  </button>
                   {status && status !== 'paid' && (
                     <button type="button" className="button-quiet" disabled={isBusy} onClick={() => void runAction(doc, onMarkPaid, 'mark as paid')}>
                       {isBusy ? 'Saving…' : 'Mark as paid'}
