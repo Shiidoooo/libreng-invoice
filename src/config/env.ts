@@ -3,6 +3,8 @@
 export interface AppConfig {
   supabaseUrl: string;
   supabasePublishableKey: string;
+  /** True once the send-document-email function is deployed (VITE_ENABLE_EMAIL_SENDING=true). */
+  isEmailSendingEnabled: boolean;
 }
 
 export type ConfigResult = { isValid: true; config: AppConfig } | { isValid: false; problems: string[] };
@@ -40,7 +42,12 @@ export function readConfig(env: Record<string, string | undefined>): ConfigResul
     problems.push('VITE_SUPABASE_PUBLISHABLE_KEY holds a SECRET key. Remove it and rotate it in Supabase.');
   }
 
-  return problems.length > 0 ? { isValid: false, problems } : { isValid: true, config: { supabaseUrl, supabasePublishableKey } };
+  return problems.length > 0
+    ? { isValid: false, problems }
+    : {
+        isValid: true,
+        config: { supabaseUrl, supabasePublishableKey, isEmailSendingEnabled: env.VITE_ENABLE_EMAIL_SENDING === 'true' },
+      };
 }
 
 export const appConfig = readConfig(import.meta.env);

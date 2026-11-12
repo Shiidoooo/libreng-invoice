@@ -39,6 +39,8 @@ interface DocumentEditorProps {
   onSave: (document: BusinessDocument) => Promise<void>;
   createId: () => string;
   now: () => Date;
+  /** The signed-in account's email; it receives a copy of emails sent from the app. */
+  accountEmail: string;
   /** Open the email window as soon as the editor shows ("Email" pressed in My documents). */
   isEmailRequested?: boolean;
   onEmailClosed?: () => void;
@@ -66,6 +68,7 @@ export function DocumentEditor({
   onSave,
   createId,
   now,
+  accountEmail,
   isEmailRequested = false,
   onEmailClosed,
 }: DocumentEditorProps) {
@@ -574,7 +577,11 @@ export function DocumentEditor({
       <div className="editor-preview">
         <DocumentPreview document={conversion.document} profile={profile} />
       </div>
-      <SendEmailModal document={emailDocument} profile={profile} onClose={() => {
+      <SendEmailModal
+        document={emailDocument}
+        profile={profile}
+        accountEmail={accountEmail}
+        onClose={() => {
           setEmailDocument(null);
           onEmailClosed?.();
         }}

@@ -374,6 +374,7 @@ export function Workspace({ userId, userEmail, onSignOut }: WorkspaceProps) {
                 setHasUnsavedChanges(true);
               }}
               onSave={handleSaveFromEditor}
+              accountEmail={userEmail}
               isEmailRequested={emailRequestId === draft.id}
               onEmailClosed={() => setEmailRequestId(null)}
               createId={createId}

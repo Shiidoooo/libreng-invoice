@@ -10,8 +10,18 @@ describe('readConfig', () => {
   it('accepts a valid URL and publishable key', () => {
     expect(readConfig(VALID)).toEqual({
       isValid: true,
-      config: { supabaseUrl: VALID.VITE_SUPABASE_URL, supabasePublishableKey: VALID.VITE_SUPABASE_PUBLISHABLE_KEY },
+      config: {
+        supabaseUrl: VALID.VITE_SUPABASE_URL,
+        supabasePublishableKey: VALID.VITE_SUPABASE_PUBLISHABLE_KEY,
+        isEmailSendingEnabled: false,
+      },
     });
+  });
+
+  it('turns on sending from the app only for the exact value "true"', () => {
+    const read = (value: string) => readConfig({ ...VALID, VITE_ENABLE_EMAIL_SENDING: value });
+    expect(read('true')).toMatchObject({ config: { isEmailSendingEnabled: true } });
+    expect(read('1')).toMatchObject({ config: { isEmailSendingEnabled: false } });
   });
 
   it('fails fast when values are missing', () => {

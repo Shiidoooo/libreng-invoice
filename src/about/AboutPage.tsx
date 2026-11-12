@@ -68,7 +68,7 @@ const FEATURES = [
   },
   {
     title: 'Email it with the PDF',
-    body: 'Opens your own Gmail or email app with a ready message you can edit. On a phone the PDF is attached for you. It is sent from your address, not ours.',
+    body: 'Send it with a ready message you can edit and the PDF attached, with a copy to you. Or open your own Gmail, email app, Messenger or Viber and send it yourself.',
   },
   {
     title: 'See who still owes you',
@@ -255,8 +255,10 @@ export function AboutPage({ callToAction }: AboutPageProps) {
           <div>
             <dt>Emails you send</dt>
             <dd>
-              Sent from your own email app or Gmail. The message and the PDF are made on your device; we do not send,
-              receive or keep a copy.
+              If you send from your own email app, Gmail or the share sheet, the email never passes through us. If you
+              press “Send email with PDF”, our email provider delivers it under your business name, copies you, and
+              sets replies to come to you. We record only the time of each send, to enforce the daily limit of 20
+              emails per account. We do not keep the recipient, the message or the PDF.
             </dd>
           </div>
           <div>

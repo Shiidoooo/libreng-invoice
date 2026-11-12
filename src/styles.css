@@ -2766,3 +2766,24 @@ mark {
     display: none !important;
   }
 }
+
+/* Sending from the app: the main action, with the do-it-yourself buttons below. */
+.send-email-direct {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.send-email-or {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.send-email-or::before,
+.send-email-or::after {
+  content: '';
+  flex: 1;
+  border-top: 1px dashed var(--color-border-strong);
+}

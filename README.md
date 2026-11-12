@@ -15,8 +15,8 @@ their documents are saved privately to their account (Supabase).
 - **Email** a document from the seller's own Gmail, email app or phone share sheet, with a message template they can
   edit in My business (`{customer}`, `{total}`, `{due}`…). The document is turned into a real PDF in the browser
   (jsPDF + html2canvas-pro, loaded only when needed): on phones it is attached automatically through Share, on
-  computers it downloads so it can be attached. The app never sends email itself, so messages come from the seller's
-  real address and the app cannot be used to send spam
+  computers it downloads so it can be attached. Optionally the app sends the email itself, with the PDF attached and
+  the seller CC'd (see "Sending email from the app")
 - **My documents:** search, filter by type and payment, amount still to collect, mark as paid, copy, delete
 - **Backup and restore** as JSON; **delete account** erases everything
 - Light, dark or device theme; works on phones (bottom navigation, sticky save bar)
@@ -28,7 +28,7 @@ official receipts.
 
 Requires Node 24+ and a Supabase project.
 
-1. **Database.** In Supabase → SQL Editor, run each file in `supabase/migrations/` in order (`0001`, `0002`, then `0003`).
+1. **Database.** In Supabase → SQL Editor, run each file in `supabase/migrations/` in order (`0001` to `0004`).
    Run new migrations **before** deploying the code that needs them.
    Every script is safe to re-run.
 2. **Error log cleanup.** Enable `pg_cron` (Database → Extensions), then run once:
@@ -112,6 +112,33 @@ All colours, type sizes and spacing are tokens at the top of `src/styles.css`; l
   Table Editor), searchable by that reference. Users can write log rows but never read them. Logs hold the error
   text, the page path and the browser, never document contents, tokens or passwords, and are deleted after 90 days.
 - A crash screen replaces a blank page if a screen fails to render. Technical details appear only in development.
+
+## Sending email from the app (optional)
+
+Off by default. When on, the email window gets a "Send email with PDF" button. The email is sent through Brevo by
+the Edge Function `supabase/functions/send-document-email`, from the service's address under the seller's business
+name. The seller is always CC'd and set as Reply-To (their account's email; the browser cannot choose these).
+
+Abuse controls: a confirmed account is required; `register_email_send()` (migration `0004`) allows 20 emails per
+account and 250 in total per 24 hours; one recipient; plain text; PDF only, about 1.5 MB at most; a fixed footer
+names the seller. Only the time of each send is stored.
+
+Setup:
+
+1. Run `0004_email_sending.sql`. Optionally schedule the cleanup:
+   `select cron.schedule('purge-email-sends', '23 3 * * *', 'select public.purge_old_email_sends()');`
+2. In Brevo, verify the sender. A domain you own (with DKIM) is strongly recommended; a free mailbox address as
+   sender is rewritten by Brevo and lands in spam more often. Create an API key (SMTP & API → API Keys).
+3. In Supabase → Edge Functions, create a function named `send-document-email` with the contents of
+   `supabase/functions/send-document-email/index.ts` (or `supabase functions deploy send-document-email`).
+4. In Edge Functions → Secrets, set `BREVO_API_KEY`, `EMAIL_SENDER_ADDRESS` and `ALLOWED_ORIGINS` (comma-separated,
+   e.g. `https://your-app.vercel.app,http://localhost:5199`). The API key is a secret: never put it in `.env.local`,
+   a `VITE_` variable or the repo.
+5. Set `VITE_ENABLE_EMAIL_SENDING=true` in `.env.local` and in the host's environment variables, then rebuild.
+
+API: `POST /functions/v1/send-document-email` · auth: the user's session · body `{ to, subject, message, fileName,
+pdfBase64 }` · replies use the `{ status, data, message, error, requestId }` envelope with 200, 400, 401, 403, 429,
+502 or 503.
 
 ## Deploying (Vercel)
 

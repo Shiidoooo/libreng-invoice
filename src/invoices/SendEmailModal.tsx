@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { BusinessProfile } from '../business/types';
+import { appConfig } from '../config/env';
 import { describeError } from '../errors/reportError';
 import { FormField } from '../ui/FormField';
 import { Modal } from '../ui/Modal';
@@ -14,6 +15,7 @@ import {
   isEmailAddress,
   type EmailContent,
 } from './emailMessage';
+import { sendDocumentEmail } from './emailSending';
 import { printDocument } from './printDocument';
 import { renderDocumentPdf } from './renderDocumentPdf';
 import type { BusinessDocument } from './types';
@@ -22,6 +24,8 @@ interface SendEmailModalProps {
   /** The saved document to send, or null when the window is closed. */
   document: BusinessDocument | null;
   profile: BusinessProfile;
+  /** The signed-in account's email: CC'd on emails sent from the app. */
+  accountEmail: string;
   onClose: () => void;
 }
 
@@ -30,16 +34,22 @@ interface SendEmailModalProps {
  * seller's own Gmail, email app or share sheet, so it is sent from their own account.
  * Edits here apply to this email only.
  */
-export function SendEmailModal({ document, profile, onClose }: SendEmailModalProps) {
+export function SendEmailModal({ document, profile, accountEmail, onClose }: SendEmailModalProps) {
   return (
     <Modal isOpen={document !== null} title={document ? `Email ${document.number}` : 'Email'} onClose={onClose} size="large">
       {/* Keyed by document so each opening starts from the template, not the last edit. */}
-      {document && <SendEmailForm key={document.id} document={document} profile={profile} onClose={onClose} />}
+      {document && (
+        <SendEmailForm key={document.id} document={document} profile={profile} accountEmail={accountEmail} onClose={onClose} />
+      )}
     </Modal>
   );
 }
 
 type CopyState = 'idle' | 'copied' | 'failed';
+
+type SendState = { status: 'idle' } | { status: 'sending' } | { status: 'sent'; message: string } | { status: 'failed'; message: string };
+
+const isSendingEnabled = appConfig.isValid && appConfig.config.isEmailSendingEnabled;
 
 type PdfState = { status: 'making' } | { status: 'ready'; file: File } | { status: 'failed'; message: string };
 
@@ -68,9 +78,10 @@ function usePdfFile(document: BusinessDocument, profile: BusinessProfile): PdfSt
   return pdf;
 }
 
-function SendEmailForm({ document, profile, onClose }: { document: BusinessDocument; profile: BusinessProfile; onClose: () => void }) {
+function SendEmailForm({ document, profile, accountEmail, onClose }: Required<Pick<SendEmailModalProps, 'profile' | 'accountEmail' | 'onClose'>> & { document: BusinessDocument }) {
   const [email, setEmail] = useState<EmailContent>(() => buildEmail(document, profile));
   const [copyState, setCopyState] = useState<CopyState>('idle');
+  const [sendState, setSendState] = useState<SendState>({ status: 'idle' });
   const pdf = usePdfFile(document, profile);
   const pdfFile = pdf.status === 'ready' ? pdf.file : null;
   const canSharePdf = pdfFile !== null && canShareFile(pdfFile);
@@ -78,6 +89,8 @@ function SendEmailForm({ document, profile, onClose }: { document: BusinessDocum
 
   const update = (changes: Partial<EmailContent>) => {
     setCopyState('idle');
+    // Editing after a send means a new email, so the Send button becomes available again.
+    setSendState((current) => (current.status === 'sending' ? current : { status: 'idle' }));
     setEmail((current) => ({ ...current, ...changes }));
   };
 
@@ -85,6 +98,22 @@ function SendEmailForm({ document, profile, onClose }: { document: BusinessDocum
   const isRecipientValid = !hasRecipient || isEmailAddress(email.to);
   const mailtoLink = buildMailtoLink(email);
   const isTooLongForMailto = mailtoLink.length > MAILTO_SAFE_LENGTH;
+
+  const handleSend = async () => {
+    if (!pdfFile || sendState.status === 'sending') return;
+    if (!isEmailAddress(email.to)) {
+      setSendState({ status: 'failed', message: 'Enter the customer’s email address in “Send to” first.' });
+      return;
+    }
+    setSendState({ status: 'sending' });
+    try {
+      const sent = await sendDocumentEmail(email, pdfFile);
+      const copyNote = sent.copySentTo ? ` A copy went to ${sent.copySentTo}.` : '';
+      setSendState({ status: 'sent', message: `Sent to ${email.to.trim()} with the PDF attached.${copyNote}` });
+    } catch (error) {
+      setSendState({ status: 'failed', message: describeError(error, `email ${document.number}`) });
+    }
+  };
 
   const handleCopy = async () => {
     try {
@@ -182,14 +211,36 @@ function SendEmailForm({ document, profile, onClose }: { document: BusinessDocum
         </p>
       )}
 
+      {isSendingEnabled && (
+        <div className="send-email-direct">
+          <button
+            type="button"
+            className="button-primary button-large"
+            disabled={pdfFile === null || sendState.status === 'sending' || sendState.status === 'sent'}
+            onClick={() => void handleSend()}
+          >
+            {sendState.status === 'sending' ? 'Sending…' : sendState.status === 'sent' ? 'Sent ✓' : 'Send email with PDF'}
+          </button>
+          <p className="field-hint">
+            Sent for you under your business name, with the PDF attached. You get a copy at {accountEmail}, and replies
+            come to you.
+          </p>
+          <div role="status" aria-live="polite">
+            {sendState.status === 'sent' && <p className="banner banner-success">{sendState.message}</p>}
+            {sendState.status === 'failed' && <p className="banner banner-error">{sendState.message}</p>}
+          </div>
+        </div>
+      )}
+
+      {isSendingEnabled && <p className="send-email-or">or send it yourself</p>}
       <div className="send-email-actions">
         {canSharePdf && (
-          <button type="button" className="button-primary" onClick={() => void handleShare()}>
+          <button type="button" className={isSendingEnabled ? 'button-secondary' : 'button-primary'} onClick={() => void handleShare()}>
             Share with PDF…
           </button>
         )}
         <a
-          className={canSharePdf ? 'button-secondary' : 'button-primary'}
+          className={canSharePdf || isSendingEnabled ? 'button-secondary' : 'button-primary'}
           href={buildGmailLink(email)}
           target="_blank"
           rel="noopener noreferrer"
