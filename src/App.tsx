@@ -1,7 +1,9 @@
+import { PublicAboutPage } from './about/PublicAboutPage';
 import { ResetPasswordPage } from './auth/ResetPasswordPage';
 import { SignInPage } from './auth/SignInPage';
 import { signOut, useSession } from './auth/session';
 import { appConfig } from './config/env';
+import { usePublicRoute } from './navigation/publicRoute';
 import { Workspace } from './Workspace';
 
 export default function App() {
@@ -11,6 +13,7 @@ export default function App() {
 
 function AuthenticatedApp() {
   const session = useSession();
+  const publicRoute = usePublicRoute();
 
   if (session.status === 'loading') {
     return (
@@ -19,6 +22,7 @@ function AuthenticatedApp() {
       </p>
     );
   }
+  if (session.status === 'signed_out' && publicRoute === 'about') return <PublicAboutPage />;
   if (session.status === 'signed_out') return <SignInPage key={session.notice ?? ''} notice={session.notice} />;
   if (session.status === 'recovering_password') return <ResetPasswordPage email={session.session.user.email ?? ''} />;
 

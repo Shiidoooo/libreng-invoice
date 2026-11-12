@@ -75,9 +75,22 @@ src/
   errors/     AppError, customer messages with reference codes, developer error logs, crash screen
   money/      centavo-based money parsing and formatting
   theme/      light/dark preference
+  navigation/ the signed-out pages (sign-in, About at `#/about`)
+  about/      the About page, shown in the app and to signed-out visitors
   ui/         shared form field, modal, confirm dialog, icons
 supabase/migrations/   database schema, security rules, rate limits
 ```
+
+## Design
+
+The look is a receipt pad: warm paper, dark ink, the red of a printed receipt number and a yellow highlighter.
+All colours, type sizes and spacing are tokens at the top of `src/styles.css`; light and dark themes share them.
+
+- **Fonts** are self-hosted from npm (`@fontsource-variable`): Bricolage Grotesque for headings and Hanken Grotesk
+  for text. The peso sign is always taken from Bricolage (the `Peso Sign` face), because Hanken's reads as a plain
+  "P" at small sizes. A new text font must be checked for a clear ₱ before it is used.
+- **Responsive:** checked at 320, 375, 768 and 1280px. Phones get a bottom navigation and a two-row total bar;
+  tablets drop the navigation icons; the sign-in pitch shortens on phones so the form is in view.
 
 ## Security and integrity
 

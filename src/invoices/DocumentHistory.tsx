@@ -131,7 +131,9 @@ export function DocumentHistory({ documents, onOpen, onDuplicate, onEmail, onMar
       <div className="stat-row">
         <div className="stat card">
           <span className="stat-label">Still to collect</span>
-          <strong className="stat-value">{toCollect.amounts.length > 0 ? toCollect.amounts.join(' + ') : formatMoney(0, 'PHP')}</strong>
+          <strong className={toCollect.count > 0 ? 'stat-value stat-value-marked' : 'stat-value'}>
+            {toCollect.amounts.length > 0 ? toCollect.amounts.join(' + ') : formatMoney(0, 'PHP')}
+          </strong>
           <span className="stat-detail">
             {toCollect.count === 0 ? 'All invoices are paid' : `${toCollect.count} unpaid or partly paid invoice${toCollect.count === 1 ? '' : 's'}`}
           </span>
@@ -187,7 +189,10 @@ export function DocumentHistory({ documents, onOpen, onDuplicate, onEmail, onMar
                   <button type="button" className="document-card-open" onClick={() => void onOpen(doc)}>
                     <span className="document-card-customer">{doc.customer.name || 'No customer name'}</span>
                     <span className="document-card-meta">
-                      {config.title} · {doc.number} · {formatDisplayDate(doc.issueDate)}
+                      <span className="document-card-number">{doc.number}</span>
+                      <span>
+                        {config.title} · {formatDisplayDate(doc.issueDate)}
+                      </span>
                     </span>
                   </button>
                   <div className="document-card-amounts">

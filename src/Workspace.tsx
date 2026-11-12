@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { AboutContent } from './about/AboutContent';
+import { AboutPage } from './about/AboutPage';
 import { SettingsPage } from './business/SettingsPage';
 import type { BusinessProfile } from './business/types';
 import { toLocalDateString } from './dates/dates';
@@ -400,10 +400,13 @@ export function Workspace({ userId, userEmail, onSignOut }: WorkspaceProps) {
           <SettingsPage profile={data.profile} onSaveProfile={handleSaveProfile} onDataImported={reload} createId={createId} now={now} />
         )}
         {view === 'about' && (
-          <section className="card about-page" aria-labelledby="about-heading">
-            <h2 id="about-heading">About Libreng Invoice</h2>
-            <AboutContent />
-          </section>
+          <AboutPage
+            callToAction={
+              <button type="button" className="button-primary button-large" onClick={goToCreate}>
+                <IconPlus /> Make a document
+              </button>
+            }
+          />
         )}
       </main>
 

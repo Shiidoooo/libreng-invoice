@@ -1,9 +1,8 @@
 import { useState, type FormEvent } from 'react';
-import { AboutContent } from '../about/AboutContent';
 import { describeError } from '../errors/reportError';
 import { FormField } from '../ui/FormField';
 import { GoogleMark } from '../ui/icons';
-import { Modal } from '../ui/Modal';
+import { ABOUT_HREF } from '../navigation/publicRoute';
 import {
   EMAIL_MAX_LENGTH,
   PASSWORD_MAX_LENGTH,
@@ -35,7 +34,6 @@ export function SignInPage({ notice }: { notice: string | null }) {
   const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string; confirmPassword?: string }>({});
   const [feedback, setFeedback] = useState<Feedback>(notice ? { tone: 'error', message: notice } : null);
   const [isBusy, setIsBusy] = useState(false);
-  const [isAboutOpen, setIsAboutOpen] = useState(false);
 
   const switchMode = (next: Mode) => {
     setMode(next);
@@ -110,18 +108,37 @@ export function SignInPage({ notice }: { notice: string | null }) {
   }[mode];
 
   return (
-    <main id="main" className="sign-in">
-      <section className="card sign-in-card">
-        <div>
-          <p className="app-logo sign-in-logo">
-            <span className="app-logo-mark" aria-hidden="true">
-              ₱
-            </span>
-            Libreng Invoice
-          </p>
-          <p className="field-hint">Free invoices, quotations and receipts for small businesses and freelancers.</p>
-        </div>
-        <h1 className="sign-in-heading">{MODE_TITLES[mode]}</h1>
+    <main id="main" className="auth">
+      <section className="auth-pitch" aria-label="What Libreng Invoice is">
+        <p className="app-logo">
+          <span className="app-logo-mark" aria-hidden="true">
+            ₱
+          </span>
+          Libreng Invoice
+        </p>
+        <h1 className="auth-headline">
+          Invoices and receipts for your business. <mark>Libre.</mark>
+        </h1>
+        <p className="auth-lead">
+          Make an invoice, quotation or receipt in a minute, then print it or send it as a PDF. Made for sari-sari
+          stores, small shops and freelancers.
+        </p>
+        <ul className="auth-points">
+          <li>No subscription, no watermark, no fee for the PDF</li>
+          <li>Price per piece, per kilo or per hour</li>
+          <li>Works on your phone</li>
+        </ul>
+        <SampleSlip />
+        <a className="auth-about-link" href={ABOUT_HREF}>
+          How it works and how your data is kept <span aria-hidden="true">→</span>
+        </a>
+      </section>
+
+      <section className="auth-panel" aria-labelledby="sign-in-heading">
+        <div className="card sign-in-card">
+        <h2 id="sign-in-heading" className="sign-in-heading">
+          {MODE_TITLES[mode]}
+        </h2>
 
         {mode !== 'forgot_password' && (
           <>
@@ -206,13 +223,39 @@ export function SignInPage({ notice }: { notice: string | null }) {
             </button>
           )}
         </div>
+        </div>
       </section>
-      <button type="button" className="link-button sign-in-about-link" onClick={() => setIsAboutOpen(true)}>
-        What is Libreng Invoice?
-      </button>
-      <Modal isOpen={isAboutOpen} title="About Libreng Invoice" size="large" onClose={() => setIsAboutOpen(false)}>
-        <AboutContent />
-      </Modal>
     </main>
+  );
+}
+
+/** A small sample receipt, purely decorative, so the page shows what the app makes. */
+function SampleSlip() {
+  return (
+    <div className="slip" aria-hidden="true">
+      <div className="slip-head">
+        <span className="slip-store">Aling Nena Store</span>
+        <span className="slip-number">No. 0012</span>
+      </div>
+      <ul className="slip-lines">
+        <li>
+          <span>Bigas, 25 kg</span>
+          <span>₱1,375.00</span>
+        </li>
+        <li>
+          <span>Itlog, 2 tray</span>
+          <span>₱480.00</span>
+        </li>
+        <li>
+          <span>Delivery</span>
+          <span>₱80.00</span>
+        </li>
+      </ul>
+      <div className="slip-total">
+        <span>Total</span>
+        <strong>₱1,935.00</strong>
+      </div>
+      <span className="slip-stamp">Paid</span>
+    </div>
   );
 }
