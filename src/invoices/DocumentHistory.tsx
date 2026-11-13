@@ -30,17 +30,26 @@ interface DocumentHistoryProps {
   onDuplicate: (doc: BusinessDocument) => void | Promise<void>;
   /** Opens the document with the email window on top. */
   onEmail: (doc: BusinessDocument) => void | Promise<void>;
-  onMarkPaid: (doc: BusinessDocument) => Promise<void>;
+  /** Saves a new amount paid: the full total (paid), 0 (unpaid), or the earlier amount (undo). */
+  onSetAmountPaid: (doc: BusinessDocument, amountPaidCentavos: number) => Promise<void>;
   onDelete: (doc: BusinessDocument) => Promise<void>;
   onCreate: () => void;
 }
 
-export function DocumentHistory({ documents, onOpen, onDuplicate, onEmail, onMarkPaid, onDelete, onCreate }: DocumentHistoryProps) {
+/** The last payment change, so it can be undone with one tap. */
+interface PaymentChange {
+  documentId: string;
+  message: string;
+  previousAmountCentavos: number;
+}
+
+export function DocumentHistory({ documents, onOpen, onDuplicate, onEmail, onSetAmountPaid, onDelete, onCreate }: DocumentHistoryProps) {
   const [search, setSearch] = useState('');
   const [kindFilter, setKindFilter] = useState<DocumentKind | 'all'>('all');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [busyId, setBusyId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [lastPaymentChange, setLastPaymentChange] = useState<PaymentChange | null>(null);
   const { confirm, confirmDialog } = useConfirm();
 
   const rows = useMemo<DocumentRow[]>(
@@ -77,16 +86,70 @@ export function DocumentHistory({ documents, onOpen, onDuplicate, onEmail, onMar
     });
   }, [rows, search, kindFilter, statusFilter]);
 
+  /** Runs one action on a document. Resolves true when it succeeded. */
   const runAction = async (doc: BusinessDocument, action: (doc: BusinessDocument) => Promise<void>, context: string) => {
     setBusyId(doc.id);
     setActionError(null);
+    setLastPaymentChange(null);
     try {
       await action(doc);
+      return true;
     } catch (error) {
       setActionError(describeError(error, `${context} ${doc.number}`));
+      return false;
     } finally {
       setBusyId(null);
     }
+  };
+
+  const handleMarkPaid = async (doc: BusinessDocument, totals: DocumentTotals) => {
+    const isConfirmed = await confirm({
+      title: 'Mark as paid?',
+      message: (
+        <p>
+          This records <strong>{formatMoney(totals.balanceDue, doc.currency)}</strong> as received
+          {doc.customer.name && <> from {doc.customer.name}</>}, so <strong>{doc.number}</strong> shows as fully paid. You
+          can undo it right after, or mark it unpaid later.
+        </p>
+      ),
+      confirmLabel: `Mark ${doc.number} as paid`,
+    });
+    if (!isConfirmed) return;
+    const previous = doc.amountPaidCentavos;
+    if (await runAction(doc, (current) => onSetAmountPaid(current, totals.total), 'mark as paid')) {
+      setLastPaymentChange({ documentId: doc.id, message: `${doc.number} marked as paid.`, previousAmountCentavos: previous });
+    }
+  };
+
+  const handleMarkUnpaid = async (doc: BusinessDocument) => {
+    const isConfirmed = await confirm({
+      title: 'Mark as unpaid?',
+      message: (
+        <p>
+          The payment of <strong>{formatMoney(doc.amountPaidCentavos, doc.currency)}</strong> on <strong>{doc.number}</strong>{' '}
+          will be cleared, and the full amount shows as still to collect. To record only part of a payment instead, use
+          Edit.
+        </p>
+      ),
+      confirmLabel: `Mark ${doc.number} as unpaid`,
+      tone: 'danger',
+    });
+    if (!isConfirmed) return;
+    const previous = doc.amountPaidCentavos;
+    if (await runAction(doc, (current) => onSetAmountPaid(current, 0), 'mark as unpaid')) {
+      setLastPaymentChange({ documentId: doc.id, message: `${doc.number} marked as unpaid.`, previousAmountCentavos: previous });
+    }
+  };
+
+  const handleUndoPaymentChange = async () => {
+    const change = lastPaymentChange;
+    // Use the latest saved version, not the one from before the change.
+    const doc = documents.find((candidate) => candidate.id === change?.documentId);
+    if (!change || !doc) {
+      setLastPaymentChange(null);
+      return;
+    }
+    await runAction(doc, (current) => onSetAmountPaid(current, change.previousAmountCentavos), 'undo the payment change on');
   };
 
   const handleDelete = async (doc: BusinessDocument) => {
@@ -174,6 +237,19 @@ export function DocumentHistory({ documents, onOpen, onDuplicate, onEmail, onMar
 
       <div role="status" aria-live="polite">
         {actionError && <p className="banner banner-error">{actionError}</p>}
+        {lastPaymentChange && (
+          <div className="banner banner-success undo-banner">
+            <span>{lastPaymentChange.message}</span>
+            <button
+              type="button"
+              className="button-quiet button-small"
+              disabled={busyId === lastPaymentChange.documentId}
+              onClick={() => void handleUndoPaymentChange()}
+            >
+              Undo
+            </button>
+          </div>
+        )}
       </div>
 
       {visibleRows.length === 0 ? (
@@ -208,8 +284,14 @@ export function DocumentHistory({ documents, onOpen, onDuplicate, onEmail, onMar
                     <IconEdit /> Edit<span className="visually-hidden"> {doc.number}</span>
                   </button>
                   {status && status !== 'paid' && (
-                    <button type="button" className="button-quiet" disabled={isBusy} onClick={() => void runAction(doc, onMarkPaid, 'mark as paid')}>
+                    <button type="button" className="button-quiet" disabled={isBusy} onClick={() => void handleMarkPaid(doc, totals)}>
                       {isBusy ? 'Saving…' : 'Mark as paid'}
+                      <span className="visually-hidden"> {doc.number}</span>
+                    </button>
+                  )}
+                  {status === 'paid' && doc.amountPaidCentavos > 0 && (
+                    <button type="button" className="button-quiet" disabled={isBusy} onClick={() => void handleMarkUnpaid(doc)}>
+                      {isBusy ? 'Saving…' : 'Mark as unpaid'}
                       <span className="visually-hidden"> {doc.number}</span>
                     </button>
                   )}

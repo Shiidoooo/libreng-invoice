@@ -265,15 +265,18 @@ export async function saveDocument(
   return { document: rowToDocument(data), counters: await fetchCounters() };
 }
 
-/** Records full payment without touching any other field, so it cannot undo other edits. */
-export async function markDocumentPaid(doc: BusinessDocument, amountPaidCentavos: number): Promise<BusinessDocument> {
+/**
+ * Changes only the amount paid (marking paid, marking unpaid, or undoing either), without
+ * touching any other field, so it cannot undo other edits.
+ */
+export async function setDocumentAmountPaid(doc: BusinessDocument, amountPaidCentavos: number): Promise<BusinessDocument> {
   const { data, error } = await requireSupabase()
     .from('documents')
     .update({ amount_paid_centavos: amountPaidCentavos })
     .eq('id', doc.id)
     .select(DOCUMENT_COLUMNS)
     .maybeSingle<DocumentRow>();
-  if (error) throw toStorageError(error, `mark ${doc.number} as paid`);
+  if (error) throw toStorageError(error, `update the payment on ${doc.number}`);
   if (!data) throw documentGoneError(doc);
   return rowToDocument(data);
 }

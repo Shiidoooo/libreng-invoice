@@ -5,6 +5,7 @@ import { CURRENCIES, centavosToPlainText, formatMoney, formatQuantity, getCurren
 import { describeError } from '../errors/reportError';
 import { AffixInput } from '../ui/AffixInput';
 import { FormField } from '../ui/FormField';
+import { useConfirm } from '../ui/useConfirm';
 import { IconMail, IconPlus, IconPrint, IconTrash } from '../ui/icons';
 import { DOCUMENT_KIND_CONFIG } from './documentKinds';
 import { DocumentPreview } from './DocumentPreview';
@@ -78,6 +79,7 @@ export function DocumentEditor({
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [paneOnMobile, setPaneOnMobile] = useState<PaneOnMobile>('form');
   const [isExtrasOpen, setIsExtrasOpen] = useState(() => hasExtras(draft));
+  const { confirm, confirmDialog } = useConfirm();
   const [emailDocument, setEmailDocument] = useState<BusinessDocument | null>(() =>
     // Saved documents opened from My documents are always valid, so this is the saved version.
     isEmailRequested ? convertDraft(draft, now().toISOString()).document : null,
@@ -119,6 +121,28 @@ export function DocumentEditor({
     } else {
       updateCustomer({ name });
     }
+  };
+
+  /** Empty items go straight away; one with something typed in it is confirmed first. */
+  const handleRemoveItem = async (item: LineItemDraft, index: number) => {
+    const hasContent = [item.description, item.unitPriceText, item.amountText].some((text) => text.trim() !== '');
+    if (hasContent) {
+      const isConfirmed = await confirm({
+        title: 'Remove this item?',
+        message: (
+          <p>
+            <strong>{item.description.trim() || `Item ${index + 1}`}</strong> and its quantity and price will be removed from
+            this document.
+          </p>
+        ),
+        confirmLabel: 'Remove item',
+        cancelLabel: 'Keep it',
+        tone: 'danger',
+      });
+      if (!isConfirmed) return;
+    }
+    // The form cannot be edited while the question is open, so this draft is still current.
+    onDraftChange({ ...draft, items: draft.items.filter((other) => other.id !== item.id) });
   };
 
   const handleSave = async (afterSave: AfterSave) => {
@@ -257,7 +281,7 @@ export function DocumentEditor({
                       className="icon-button"
                       aria-label={`Remove item ${index + 1}${item.description ? `: ${item.description}` : ''}`}
                       disabled={draft.items.length === 1}
-                      onClick={() => update({ items: draft.items.filter((other) => other.id !== item.id) })}
+                      onClick={() => void handleRemoveItem(item, index)}
                     >
                       <IconTrash />
                     </button>
@@ -577,6 +601,7 @@ export function DocumentEditor({
       <div className="editor-preview">
         <DocumentPreview document={conversion.document} profile={profile} />
       </div>
+      {confirmDialog}
       <SendEmailModal
         document={emailDocument}
         profile={profile}

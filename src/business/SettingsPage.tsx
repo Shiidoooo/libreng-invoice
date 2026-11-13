@@ -15,6 +15,7 @@ import {
 import { BackupFormatError, MAX_BACKUP_FILE_BYTES, parseBackup, parseProfile } from '../storage/backupFormat';
 import { createBackup, deleteMyAccount, importBackup } from '../storage/database';
 import { FormField } from '../ui/FormField';
+import { useConfirm } from '../ui/useConfirm';
 import { readLogoFile } from './logo';
 import type { BusinessProfile, PaymentMethod } from './types';
 
@@ -38,6 +39,7 @@ export function SettingsPage({ profile, onSaveProfile, onDataImported, createId,
   const [profileFeedback, setProfileFeedback] = useState<Feedback>(null);
   const [backupFeedback, setBackupFeedback] = useState<Feedback>(null);
   const [isImporting, setIsImporting] = useState(false);
+  const { confirm, confirmDialog } = useConfirm();
 
   const update = (changes: Partial<BusinessProfile>) => {
     setProfileFeedback(null);
@@ -113,6 +115,19 @@ export function SettingsPage({ profile, onSaveProfile, onDataImported, createId,
     setIsImporting(true);
     try {
       const backup = parseBackup(await file.text());
+      const count = backup.documents.length;
+      const isConfirmed = await confirm({
+        title: 'Restore this backup?',
+        message: (
+          <p>
+            The backup has <strong>{count} document{count === 1 ? '' : 's'}</strong>. New ones are added. Documents that are
+            already here are replaced with the backup’s version, so changes made since the backup was downloaded are lost.
+            Nothing is deleted.
+          </p>
+        ),
+        confirmLabel: `Restore ${count} document${count === 1 ? '' : 's'}`,
+      });
+      if (!isConfirmed) return;
       const summary = await importBackup(backup, createId);
       await onDataImported();
       if (summary.isProfileImported) setForm(backup.profile);
@@ -363,6 +378,7 @@ export function SettingsPage({ profile, onSaveProfile, onDataImported, createId,
       </section>
 
       <DeleteAccountSection />
+      {confirmDialog}
     </div>
   );
 }

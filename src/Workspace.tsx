@@ -11,7 +11,6 @@ import { DocumentHistory } from './invoices/DocumentHistory';
 import { createNewDraft, draftFromDocument, duplicateAsDraft, type DocumentDraft } from './invoices/draft';
 import { clearUnsavedDraft, storeUnsavedDraft, takeUnsavedDraft } from './invoices/draftStorage';
 import { isAutomaticNumber, suggestNextNumber } from './invoices/numbering';
-import { computeTotals } from './invoices/totals';
 import type { BusinessDocument, DocumentKind, Party } from './invoices/types';
 import { centavosToPlainText } from './money/money';
 import {
@@ -19,8 +18,8 @@ import {
   deleteDocument,
   loadAppData,
   loadCounters,
-  markDocumentPaid,
   saveDocument,
+  setDocumentAmountPaid,
   saveProfile,
   type AppData,
 } from './storage/database';
@@ -242,8 +241,8 @@ export function Workspace({ userId, userEmail, onSignOut }: WorkspaceProps) {
     }
   };
 
-  const handleMarkPaid = async (doc: BusinessDocument) => {
-    const saved = await markDocumentPaid(doc, computeTotals(doc).total);
+  const handleSetAmountPaid = async (doc: BusinessDocument, amountPaidCentavos: number) => {
+    const saved = await setDocumentAmountPaid(doc, amountPaidCentavos);
     replaceDocument(saved);
     // Keep the open editor in step, so a later Save cannot undo the payment.
     setDraft((current) =>
@@ -264,8 +263,35 @@ export function Workspace({ userId, userEmail, onSignOut }: WorkspaceProps) {
     updateData(() => ({ profile }));
   };
 
+  /** Always asks first: the sign-out button sits next to the theme button and is easy to hit. */
   const handleSignOut = async () => {
-    if (!(await confirmDiscardChanges())) return;
+    const isConfirmed = await confirm(
+      hasUnsavedChanges
+        ? {
+            title: 'Sign out without saving?',
+            message: (
+              <p>
+                Your changes on <strong>{draft.number || 'this document'}</strong> are not saved yet. If you sign out now,
+                they will be lost.
+              </p>
+            ),
+            confirmLabel: 'Sign out without saving',
+            cancelLabel: 'Keep editing',
+            tone: 'danger',
+          }
+        : {
+            title: 'Sign out?',
+            message: (
+              <p>
+                You will be signed out of <strong>{userEmail}</strong> on this device. Your documents stay saved in your
+                account.
+              </p>
+            ),
+            confirmLabel: 'Sign out',
+            cancelLabel: 'Stay signed in',
+          },
+    );
+    if (!isConfirmed) return;
     clearUnsavedDraft(userId);
     onSignOut();
   };
@@ -392,7 +418,7 @@ export function Workspace({ userId, userEmail, onSignOut }: WorkspaceProps) {
               replaceDraft(duplicateAsDraft(doc, { today: today(), counters: data.counters, createId }));
               setView('editor');
             }}
-            onMarkPaid={handleMarkPaid}
+            onSetAmountPaid={handleSetAmountPaid}
             onDelete={handleDelete}
             onCreate={goToCreate}
           />
