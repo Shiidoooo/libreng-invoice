@@ -902,6 +902,8 @@ button:disabled,
     top: calc(var(--header-height) + var(--space-4));
     max-height: calc(100vh - var(--header-height) - 2 * var(--space-4));
     overflow: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-border-strong) transparent;
     /* Room for the page's shadow inside the scrolling box. */
     padding: 0 var(--space-3) var(--space-5) 0;
   }
@@ -1087,10 +1089,13 @@ button:disabled,
   }
 }
 
-/* Sticky save bar: always within reach, and shows the total. */
+/*
+ * Sticky save bar: always within reach, and shows the total. It is docked to the bottom
+ * edge (above the phone navigation), so nothing shows through underneath it.
+ */
 .action-bar {
   position: sticky;
-  bottom: calc(var(--bottom-nav-height) + var(--space-2));
+  bottom: var(--bottom-nav-height);
   z-index: var(--z-sticky);
   display: grid;
   grid-template-columns: auto 1fr;
@@ -1099,8 +1104,20 @@ button:disabled,
   padding: var(--space-3) var(--space-4);
   background: var(--bar-bg);
   color: var(--bar-text);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow-raised);
+  border-top: 1px solid rgb(255 253 247 / 0.18);
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+
+/* The form fades out as it passes under the bar, instead of being cut off mid-line. */
+.action-bar::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 100%;
+  height: var(--space-5);
+  background: linear-gradient(to top, var(--color-bg), transparent);
+  pointer-events: none;
 }
 
 .action-bar .button-secondary {
@@ -1132,7 +1149,7 @@ button:disabled,
 
 @media (min-width: 768px) {
   .action-bar {
-    bottom: var(--space-3);
+    bottom: 0;
   }
 }
 
