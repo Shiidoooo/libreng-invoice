@@ -2820,3 +2820,154 @@ mark {
   justify-content: space-between;
   gap: var(--space-2) var(--space-3);
 }
+
+/* ---------- Legal pages (Privacy Policy, Terms of Use) ---------- */
+.legal {
+  width: 100%;
+  max-width: 46rem;
+  margin: 0 auto;
+  display: grid;
+  gap: var(--space-6);
+  padding: var(--space-4) 0 var(--space-6);
+}
+
+.legal a {
+  color: inherit;
+  font-weight: 600;
+  text-decoration-color: var(--color-accent);
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+}
+
+.legal-header {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.legal-header h1 {
+  font-size: clamp(2rem, 6vw, 3rem);
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+}
+
+.legal-updated {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.legal-lead {
+  font-size: var(--text-lg);
+}
+
+.legal-section {
+  display: grid;
+  gap: var(--space-3);
+  padding-top: var(--space-4);
+  border-top: 2px solid var(--color-text);
+}
+
+.legal-section h2 {
+  font-size: var(--text-xl);
+  font-weight: 800;
+}
+
+.legal-section ul {
+  margin: 0;
+  padding-left: var(--space-5);
+  display: grid;
+  gap: var(--space-2);
+}
+
+/* The parts a reader must not miss (BIR, liability) sit in a red-ruled box. */
+.legal-important {
+  padding: var(--space-4);
+  border: 2px solid var(--color-accent);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+}
+
+.legal-list {
+  margin: 0;
+  display: grid;
+  gap: var(--space-3);
+}
+
+.legal-list dt {
+  font-weight: 800;
+}
+
+.legal-list dd {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+.legal-table-wrap {
+  overflow-x: auto;
+}
+
+.legal-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+
+.legal-table th,
+.legal-table td {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px dashed var(--color-border-strong);
+  text-align: left;
+  vertical-align: top;
+}
+
+.legal-table thead th {
+  border-bottom: 2px solid var(--color-text);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+/* Footer links to About, Privacy Policy and Terms of Use. */
+.legal-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  font-size: var(--text-sm);
+}
+
+.legal-links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--touch-target);
+  color: var(--color-text-muted);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.legal-links a:hover {
+  color: var(--color-text);
+}
+
+.public-footer {
+  max-width: 46rem;
+  margin: 0 auto;
+  padding: 0 var(--space-4) var(--space-6);
+}
+
+.sign-in-consent {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.sign-in-consent a {
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+.sign-in-legal {
+  justify-content: center;
+  border-top: 1px dashed var(--color-border-strong);
+}

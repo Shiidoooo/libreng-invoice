@@ -1,17 +1,25 @@
 import { useSyncExternalStore } from 'react';
 
 /**
- * The pages a signed-out visitor can open. The route lives in the URL hash ("#/about")
- * so the About page can be linked to and the browser's Back button works, without the
- * host needing any rewrite rules.
+ * Pages that can be opened by link. The route lives in the URL hash ("#/about") so pages
+ * can be linked to and the browser's Back button works, without the host needing any
+ * rewrite rules. About, Privacy and Terms are public: they can be read signed in or not.
  */
-export type PublicRoute = 'sign_in' | 'about';
+export type PublicRoute = 'home' | 'about' | 'privacy' | 'terms';
 
+export const HOME_HREF = '#/';
 export const ABOUT_HREF = '#/about';
-export const SIGN_IN_HREF = '#/';
+export const PRIVACY_HREF = '#/privacy';
+export const TERMS_HREF = '#/terms';
+
+const ROUTES: Record<string, PublicRoute> = {
+  [ABOUT_HREF]: 'about',
+  [PRIVACY_HREF]: 'privacy',
+  [TERMS_HREF]: 'terms',
+};
 
 export function parsePublicRoute(hash: string): PublicRoute {
-  return hash === ABOUT_HREF ? 'about' : 'sign_in';
+  return ROUTES[hash] ?? 'home';
 }
 
 function subscribe(onChange: () => void): () => void {

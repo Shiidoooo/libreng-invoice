@@ -4,6 +4,7 @@ import { MAX_LINE_ITEMS } from '../invoices/draft';
 import { DOCUMENT_KIND_CONFIG } from '../invoices/documentKinds';
 import { DOCUMENT_KINDS, type DocumentKind } from '../invoices/types';
 import { CURRENCIES } from '../money/money';
+import { PRIVACY_HREF, TERMS_HREF } from '../navigation/publicRoute';
 
 interface AboutPageProps {
   /** The button that ends the hero and the page: "Create an account" when signed out, "Make a document" when signed in. */
@@ -222,6 +223,10 @@ export function AboutPage({ callToAction }: AboutPageProps) {
       <section className="about-section" aria-labelledby="about-data">
         <p className="eyebrow">Your data</p>
         <h2 id="about-data">What we keep, who can see it, and how to remove it</h2>
+        <p className="about-prose">
+          The short version is below. The full details, including your rights under the Data Privacy Act, are in the{' '}
+          <a href={PRIVACY_HREF}>Privacy Policy</a> and the <a href={TERMS_HREF}>Terms of Use</a>.
+        </p>
         <dl className="about-ledger">
           <div>
             <dt>What is saved</dt>

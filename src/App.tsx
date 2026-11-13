@@ -1,4 +1,4 @@
-import { PublicAboutPage } from './about/PublicAboutPage';
+import { PublicPage } from './about/PublicPage';
 import { ResetPasswordPage } from './auth/ResetPasswordPage';
 import { SignInPage } from './auth/SignInPage';
 import { signOut, useSession } from './auth/session';
@@ -22,9 +22,9 @@ function AuthenticatedApp() {
       </p>
     );
   }
-  if (session.status === 'signed_out' && publicRoute === 'about') return <PublicAboutPage />;
-  if (session.status === 'signed_out') return <SignInPage key={session.notice ?? ''} notice={session.notice} />;
   if (session.status === 'recovering_password') return <ResetPasswordPage email={session.session.user.email ?? ''} />;
+  if (publicRoute !== 'home') return <PublicPage route={publicRoute} isSignedIn={session.status === 'signed_in'} />;
+  if (session.status === 'signed_out') return <SignInPage key={session.notice ?? ''} notice={session.notice} />;
 
   const { user } = session.session;
   return <Workspace key={user.id} userId={user.id} userEmail={user.email ?? 'Signed in'} onSignOut={() => void signOut()} />;

@@ -70,6 +70,8 @@ own number instead; the same number is never used twice.
   and restoring a backup. Unsaved work survives an accidental refresh.
 - **Light and dark mode,** and a layout made for phones first.
 - **About page** that explains the app to visitors before they sign up (`#/about`).
+- **Privacy Policy** (`#/privacy`) and **Terms of Use** (`#/terms`), written for the Philippine Data Privacy Act
+  of 2012 (RA 10173), linked from the sign-in screen and every footer.
 
 ---
 
@@ -135,8 +137,9 @@ src/
   styles.css            all styles and design tokens (light and dark)
 
   auth/                 sign-in, sign-up, forgot/reset password, session handling
-  about/                the About page (in the app and for signed-out visitors)
-  navigation/           signed-out pages routing (#/about)
+  about/                the About page, and the shell for public pages (About, Privacy, Terms)
+  legal/                Privacy Policy, Terms of Use, and legalInfo.ts (contact, providers, date)
+  navigation/           public page routing (#/about, #/privacy, #/terms)
   business/             business profile ("My business"), logo checks
   invoices/             the core: document types, editor, preview, totals, units, numbering,
                         drafts, My documents, PDF, email
@@ -382,6 +385,13 @@ themes.
 
 ---
 
+## Privacy and legal pages
+
+`src/legal/legalInfo.ts` holds the facts both pages depend on: the operator name, the contact email (which must be a
+monitored inbox), the "last updated" date and the list of service providers with their locations. Update it, and
+the date, whenever the providers, the data collected or the contact change. The texts are a good-faith starting
+point, not legal advice; have a lawyer review them before a commercial launch.
+
 ## Before going live with real customers
 
 - **Database:** reset the database password, or create a fresh production Supabase project (Singapore region is
@@ -391,5 +401,7 @@ themes.
 - **Sign-up and reset emails:** Supabase's built-in sender only sends a few per hour. Connect a custom SMTP
   provider (Brevo SMTP works) in Authentication → Emails → SMTP Settings.
 - **Your own domain in Brevo:** so invoice emails land in the inbox, not in spam.
+- **Legal pages:** confirm the contact email in `src/legal/legalInfo.ts`, and add the Privacy Policy and Terms
+  addresses to the Google OAuth consent screen.
 - **Supabase plan:** the free plan pauses after about a week without activity and has no automatic backups.
   Upgrade to Pro once you have real users.

@@ -2,7 +2,8 @@ import { useState, type FormEvent } from 'react';
 import { describeError } from '../errors/reportError';
 import { FormField } from '../ui/FormField';
 import { GoogleMark } from '../ui/icons';
-import { ABOUT_HREF } from '../navigation/publicRoute';
+import { LegalLinks } from '../about/PublicPage';
+import { ABOUT_HREF, PRIVACY_HREF, TERMS_HREF } from '../navigation/publicRoute';
 import {
   EMAIL_MAX_LENGTH,
   PASSWORD_MAX_LENGTH,
@@ -206,6 +207,13 @@ export function SignInPage({ notice }: { notice: string | null }) {
           {feedback && <p className={`banner banner-${feedback.tone}`}>{feedback.message}</p>}
         </div>
 
+        {mode !== 'forgot_password' && (
+          <p className="sign-in-consent">
+            By continuing, you agree to the <a href={TERMS_HREF}>Terms of Use</a> and confirm you have read the{' '}
+            <a href={PRIVACY_HREF}>Privacy Policy</a>. Documents made here are not BIR official receipts.
+          </p>
+        )}
+
         <div className="sign-in-links">
           {mode === 'sign_in' && (
             <>
@@ -224,6 +232,7 @@ export function SignInPage({ notice }: { notice: string | null }) {
           )}
         </div>
         </div>
+        <LegalLinks className="sign-in-legal" />
       </section>
     </main>
   );

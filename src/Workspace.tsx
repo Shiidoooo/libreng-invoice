@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { AboutPage } from './about/AboutPage';
+import { LegalLinks } from './about/PublicPage';
 import { SettingsPage } from './business/SettingsPage';
 import type { BusinessProfile } from './business/types';
 import { toLocalDateString } from './dates/dates';
@@ -439,6 +440,7 @@ export function Workspace({ userId, userEmail, onSignOut }: WorkspaceProps) {
 
       <footer className="app-footer">
         <p>Free to use. Documents made here are not BIR-registered official receipts or invoices.</p>
+        <LegalLinks isNewTab />
       </footer>
       {confirmDialog}
     </div>
