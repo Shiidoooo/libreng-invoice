@@ -4,13 +4,16 @@
  * opening their email app. The seller is CC'd and set as Reply-To by the server.
  */
 import { appConfig } from '../config/env';
-import { AppError, OFFLINE_MESSAGE } from '../errors/appError';
+import { AppError } from '../errors/appError';
 import { requireSupabase } from '../storage/supabaseClient';
 import type { EmailContent } from './emailMessage';
 
 /** Uploading a PDF on mobile data can be slow, so this is longer than a normal request. */
 const SEND_TIMEOUT_MS = 45_000;
 const FUNCTION_PATH = '/functions/v1/send-document-email';
+
+const UNREACHABLE_MESSAGE =
+  'Could not reach the email service. Check your internet connection and try again. If it keeps happening, use “Share” or “Download” for now.';
 
 /** Must match MAX_PDF_BASE64_LENGTH in supabase/functions/send-document-email. */
 export const MAX_PDF_BASE64_LENGTH = 2_000_000;
@@ -83,7 +86,9 @@ export async function sendDocumentEmail(email: EmailContent, pdf: File): Promise
       }),
     });
   } catch (error) {
-    throw new AppError('transient', OFFLINE_MESSAGE, { cause: error });
+    // The browser reports a refused cross-site request the same way as being offline, so
+    // mention both: a site address missing from ALLOWED_ORIGINS looks exactly like this.
+    throw new AppError('transient', UNREACHABLE_MESSAGE, { cause: error });
   }
 
   const body: unknown = await response.json().catch(() => null);

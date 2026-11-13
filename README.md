@@ -207,6 +207,10 @@ rounding errors).
   JPEG or WebP, checked by the file's actual bytes, up to 300 KB.
 - **Browser protections:** a strict Content-Security-Policy (no inline scripts, no outside scripts),
   `frame-ancestors 'none'`, HSTS, `nosniff`, a referrer policy and a permissions policy (`vercel.json`).
+  The PDF library (html2canvas-pro) needs two allowances: `base-uri 'self'`, and one `sha256` hash in `style-src`
+  for the fixed style block it adds while capturing. That hash belongs to html2canvas-pro 2.5.2; after upgrading it,
+  check the browser console for a blocked inline style when making a PDF and update the hash. Fonts are never
+  inlined (`vite.config.ts`), because `font-src` only allows files from the site.
 - **Sign-in:** PKCE flow; email links use `token_hash` so they work on any device; password reset never reveals
   whether an account exists.
 - **Git:** `.env*` files (except `.env.example`), key files and `test-reports/` are ignored.
